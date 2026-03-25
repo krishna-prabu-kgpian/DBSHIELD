@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
+from database import connect_to_db, handle_student_login
 
 app = FastAPI(title="DBSHIELD Backend")
 
@@ -19,11 +19,6 @@ class LoginPayload(BaseModel):
 	password: str
 
 
-def handle_student_login(username: str, password: str) -> None:
-	# Placeholder hook for future processing/storage logic.
-	_ = (username, password)
-
-
 @app.get("/health")
 def health_check() -> dict[str, str]:
 	return {"status": "ok"}
@@ -31,11 +26,17 @@ def health_check() -> dict[str, str]:
 
 @app.post("/api/login")
 def login(payload: LoginPayload) -> dict[str, str]:
-	username = payload.username.strip()
-	password = payload.password
+    username = payload.username.strip()
+    password = payload.password
 
-	if not username or not password:
-		raise HTTPException(status_code=400, detail="Username and password are required.")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required.")
 
-	handle_student_login(username, password)
-	return {"message": "Credentials received."}
+    result = handle_student_login(username, password)
+    if not result:
+        return {"message": "Not Present"}
+    
+    else:
+        user = result["username"]
+        pass_word = result["password"]
+        return {"message": f"Authorizing {user} with password {pass_word}"}
