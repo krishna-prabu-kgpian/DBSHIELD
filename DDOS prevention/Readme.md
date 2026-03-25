@@ -382,18 +382,6 @@ Prevents resource exhaustion from oversized queries.
 
 ---
 
-## Future Enhancements
-
-Potential improvements for production deployment:
-
-1. **Persistent Storage**: Redis integration for distributed caching
-2. **Monitoring**: Prometheus metrics and Grafana dashboards
-3. **Advanced Geolocation**: Integration with MaxMind GeoIP2 database
-4. **Query Analysis**: Machine learning-based anomaly detection
-5. **Load Balancing**: Multi-instance deployment with shared state
-
----
-
 ## License and Acknowledgments
 
 This project was developed as a demonstration of Layer 7 DoS mitigation techniques for database-backed applications. It illustrates the importance of defense-in-depth architecture and intelligent request handling in high-traffic scenarios.
