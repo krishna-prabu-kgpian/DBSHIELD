@@ -193,7 +193,7 @@ This demonstrates that the database remained highly responsive despite attack vo
 
 ## Performance Summary
 
-For detailed performance metrics and analysis, see [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md).
+For detailed performance metrics and analysis, see [Performance_Report.md](Performance_Report.md).
 
 **Key Highlights:**
 
