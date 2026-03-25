@@ -57,51 +57,37 @@ memory_filter = InMemoryFilter()
 
 # --- Priority Computation ---
 def _compute_priority(geo_result: GeolocationResult) -> int:
-    """
-    Compute request priority based on geolocation result.
-
-    Priority levels (lower = higher priority):
-    1 = PRIORITY_METRO_VERIFIED: Metro city verified by IP geolocation
-    2 = PRIORITY_METRO_CLAIMED: Metro city from header only
-    3 = PRIORITY_TIER2_CITY: Large non-metro cities
-    4 = PRIORITY_STANDARD: All other locations
-    5 = PRIORITY_SUSPICIOUS: Spoofing detected
-    """
     city = geo_result.city.lower() if geo_result.city else ""
 
-    # Spoofing detected - lowest priority
     if geo_result.is_spoofing:
-        return PRIORITY_SUSPICIOUS  # 5
+        return PRIORITY_SUSPICIOUS
 
-    # High trust sources (IP verified, header matches)
     if geo_result.source in (
         GeolocationSource.IP_VERIFIED,
         GeolocationSource.HEADER_VERIFIED,
         GeolocationSource.IP_ONLY
     ):
         if city in METRO_CITIES:
-            return PRIORITY_METRO_VERIFIED  # 1
+            return PRIORITY_METRO_VERIFIED
         if city in TIER2_CITIES:
-            return PRIORITY_TIER2_CITY  # 3
-        return PRIORITY_STANDARD  # 4
+            return PRIORITY_TIER2_CITY
+        return PRIORITY_STANDARD
 
-    # Header only (unverified) - lower trust
     if geo_result.source in (
         GeolocationSource.HEADER_ONLY,
         GeolocationSource.LOCAL_IP
     ):
         if city in METRO_CITIES:
-            return PRIORITY_METRO_CLAIMED  # 2
+            return PRIORITY_METRO_CLAIMED
         if city in TIER2_CITIES:
-            return PRIORITY_TIER2_CITY  # 3
-        return PRIORITY_STANDARD  # 4
+            return PRIORITY_TIER2_CITY
+        return PRIORITY_STANDARD
 
-    return PRIORITY_STANDARD  # 4
+    return PRIORITY_STANDARD
 
 
 # --- Background Tasks ---
 async def periodic_cleanup():
-    """Background task for cache and history cleanup."""
     while True:
         await asyncio.sleep(60)
         await full_cache.cleanup_expired()
@@ -111,15 +97,12 @@ async def periodic_cleanup():
 # --- App Lifecycle ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage app startup and shutdown."""
-    # Startup
     await worker_pool.start()
     cleanup_task = asyncio.create_task(periodic_cleanup())
     print("[SHIELD] DDoS Shield initialized with intelligent caching and geolocation")
 
     yield
 
-    # Shutdown
     cleanup_task.cancel()
     await worker_pool.stop()
     await geolocation_service.close()
@@ -139,22 +122,11 @@ async def execute_query(
     request: Request,
     x_user_city: Optional[str] = Header(default="unknown")
 ):
-    """
-    Execute a SQL query with full protection stack.
-
-    Protection layers:
-    1. IP rate limiting
-    2. Request validation
-    3. Full result cache lookup
-    4. Mid-AST cache lookup (superset matching)
-    5. AST-based rate limiting
-    6. Worker pool execution
-    7. Cache population
-    """
     start_time = time.time()
 
     # --- LAYER 1: IP Validation ---
-    client_ip = request.client.host if request.client else "unknown"
+    # Allow simulator to spoof IPs via X-Forwarded-For header to test distributed attacks properly
+    client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
 
     is_allowed, block_reason = await ip_limiter.check_ip(client_ip)
     if not is_allowed:
@@ -198,7 +170,6 @@ async def execute_query(
             base_result, additional_conditions = reusable
             filtered_result = memory_filter.filter_results(base_result, additional_conditions)
 
-            # Also store in full cache for future exact matches
             await full_cache.set(full_cache_key, filtered_result)
 
             latency = time.time() - start_time
@@ -266,13 +237,11 @@ async def execute_query(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
     return {"status": "healthy", "timestamp": time.time()}
 
 
 @app.get("/stats")
 async def get_stats():
-    """Get comprehensive system statistics."""
     full_cache_stats = await full_cache.get_stats()
     intermediate_cache_stats = await intermediate_cache.get_stats()
     query_history_stats = await query_history.get_stats()
@@ -294,14 +263,12 @@ async def get_stats():
 
 @app.post("/blacklist/{ip}")
 async def add_to_blacklist(ip: str):
-    """Add an IP to the blacklist."""
     await ip_limiter.add_to_blacklist(ip)
     return {"status": "success", "message": f"IP {ip} added to blacklist"}
 
 
 @app.delete("/blacklist/{ip}")
 async def remove_from_blacklist(ip: str):
-    """Remove an IP from the blacklist."""
     await ip_limiter.remove_from_blacklist(ip)
     return {"status": "success", "message": f"IP {ip} removed from blacklist"}
 
@@ -310,7 +277,6 @@ async def remove_from_blacklist(ip: str):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Global exception handler."""
     print(f"[ERROR] Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
@@ -318,7 +284,6 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# --- Run directly for testing ---
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8001)

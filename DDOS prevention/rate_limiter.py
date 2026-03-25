@@ -5,6 +5,7 @@ Rate limiting and request validation for DDoS protection.
 import asyncio
 import time
 import sqlparse
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple
 
@@ -40,15 +41,6 @@ class IPTrackingInfo:
 class IPRateLimiter:
     """
     Multi-tier IP-based rate limiting with progressive penalties.
-
-    Tiers:
-    - Per-second limit
-    - Per-minute limit
-    - Connection count limit
-
-    Penalties:
-    - After N violations: temporary ban
-    - After M violations: permanent blacklist
     """
 
     def __init__(self):
@@ -58,51 +50,38 @@ class IPRateLimiter:
         self._last_cleanup = time.time()
 
     async def check_ip(self, ip_address: str) -> Tuple[bool, str]:
-        """
-        Check if IP is allowed to make request.
-
-        Returns:
-            (is_allowed, reason_if_blocked)
-        """
+        """Check if IP is allowed to make request."""
         async with self._lock:
-            # Check permanent blacklist
             if ip_address in self._blacklist:
                 return False, "IP permanently blacklisted"
 
-            # Get or create tracking info
             if ip_address not in self._ip_data:
                 self._ip_data[ip_address] = IPTrackingInfo()
 
             info = self._ip_data[ip_address]
             current_time = time.time()
 
-            # Check if under penalty
             if info.penalty_until > current_time:
                 remaining = int(info.penalty_until - current_time)
                 return False, f"IP temporarily banned for {remaining}s"
 
-            # Clean old timestamps (keep only last minute)
             info.request_timestamps = [
                 t for t in info.request_timestamps
                 if current_time - t < 60
             ]
 
-            # Check per-second rate
             recent_second = sum(1 for t in info.request_timestamps if current_time - t < 1)
             if recent_second >= IP_REQUESTS_PER_SECOND:
                 await self._record_violation(ip_address, info, current_time)
                 return False, f"Rate limit exceeded: {IP_REQUESTS_PER_SECOND}/second"
 
-            # Check per-minute rate
             if len(info.request_timestamps) >= IP_REQUESTS_PER_MINUTE:
                 await self._record_violation(ip_address, info, current_time)
                 return False, f"Rate limit exceeded: {IP_REQUESTS_PER_MINUTE}/minute"
 
-            # Record request
             info.request_timestamps.append(current_time)
 
-            # Periodic cleanup
-            if current_time - self._last_cleanup > 300:  # Every 5 minutes
+            if current_time - self._last_cleanup > 300: 
                 await self._cleanup_old_ips(current_time)
                 self._last_cleanup = current_time
 
@@ -118,7 +97,6 @@ class IPRateLimiter:
             info.is_blacklisted = True
             print(f"[BLACKLIST] IP {ip} permanently blacklisted after {info.violation_count} violations")
         elif info.violation_count >= VIOLATIONS_FOR_TEMP_BAN:
-            # Progressive ban: 60s, 120s, 240s, ...
             multiplier = info.violation_count - VIOLATIONS_FOR_TEMP_BAN
             ban_duration = BASE_BAN_SECONDS * (BAN_MULTIPLIER ** multiplier)
             ban_duration = min(ban_duration, MAX_BAN_SECONDS)
@@ -138,16 +116,7 @@ class IPRateLimiter:
             del self._ip_data[ip]
 
     async def check_connection(self, ip: str, delta: int) -> bool:
-        """
-        Track connection count.
-
-        Args:
-            ip: IP address
-            delta: +1 for new connection, -1 for closed
-
-        Returns:
-            False if limit exceeded
-        """
+        """Track connection count."""
         async with self._lock:
             if ip not in self._ip_data:
                 self._ip_data[ip] = IPTrackingInfo()
@@ -190,11 +159,7 @@ class IPRateLimiter:
 class BoundedQueryHistory:
     """
     Thread-safe, memory-bounded query history for AST-based rate limiting.
-
-    Fixes the memory leak in the original implementation by:
-    - Limiting max entries
-    - Automatic cleanup of stale entries
-    - Atomic record-and-check operation
+    Upgraded to use O(1) eviction via OrderedDict to survive DoS floods.
     """
 
     def __init__(
@@ -203,7 +168,8 @@ class BoundedQueryHistory:
         ttl_seconds: int = QUERY_HISTORY_TTL_SECONDS,
         cleanup_interval: int = QUERY_HISTORY_CLEANUP_INTERVAL
     ):
-        self._history: Dict[str, List[float]] = {}
+        # Using OrderedDict for O(1) LRU caching
+        self._history: OrderedDict[str, List[float]] = OrderedDict()
         self._lock = asyncio.Lock()
         self._last_cleanup = time.time()
         self.max_entries = max_entries
@@ -213,39 +179,30 @@ class BoundedQueryHistory:
     async def record_and_check(self, query_hash: str, threshold: int, window: int) -> bool:
         """
         Atomically records timestamp and checks if rate limited.
-
-        Returns:
-            True if rate limited, False otherwise
         """
         async with self._lock:
             current_time = time.time()
 
-            # Periodic cleanup
             if current_time - self._last_cleanup > self.cleanup_interval:
                 await self._cleanup_stale_entries(current_time)
                 self._last_cleanup = current_time
 
-            # Get or create entry
+            # O(1) Eviction Logic
             if query_hash not in self._history:
-                # Check if at capacity
                 if len(self._history) >= self.max_entries:
-                    # Evict oldest entry
-                    oldest_key = min(
-                        self._history.keys(),
-                        key=lambda k: max(self._history[k]) if self._history[k] else 0
-                    )
-                    del self._history[oldest_key]
+                    # Instantly pop the oldest item from the front
+                    self._history.popitem(last=False)
                 self._history[query_hash] = []
+            else:
+                # Move accessed item to the back (most recently used)
+                self._history.move_to_end(query_hash)
 
-            # Filter to window
             timestamps = self._history[query_hash]
             self._history[query_hash] = [t for t in timestamps if current_time - t < window]
 
-            # Check threshold BEFORE adding new timestamp
             if len(self._history[query_hash]) >= threshold:
                 return True
 
-            # Record new timestamp
             self._history[query_hash].append(current_time)
             return False
 
@@ -270,15 +227,7 @@ class BoundedQueryHistory:
 
 
 class RequestValidator:
-    """
-    Validates incoming requests for DDoS mitigation.
-
-    Checks:
-    - Query length
-    - Body size
-    - Dangerous SQL keywords
-    - SQL syntax validity
-    """
+    """Validates incoming requests for DDoS mitigation."""
 
     def __init__(
         self,
@@ -291,32 +240,21 @@ class RequestValidator:
         self.blocked_keywords = blocked_keywords or BLOCKED_SQL_KEYWORDS
 
     def validate(self, query: str, body_size: int) -> Tuple[bool, str]:
-        """
-        Validate request.
-
-        Returns:
-            (is_valid, error_message)
-        """
-        # Check body size
+        """Validate request."""
         if body_size > self.max_body_size:
             return False, f"Request body exceeds {self.max_body_size} bytes"
 
-        # Check query length
         if len(query) > self.max_query_length:
             return False, f"Query exceeds {self.max_query_length} characters"
 
-        # Check for empty query
         if not query or not query.strip():
             return False, "Empty query"
 
-        # Check for dangerous keywords
         query_upper = query.upper()
         for keyword in self.blocked_keywords:
-            # Check for keyword as a whole word
             if f" {keyword} " in f" {query_upper} ":
                 return False, f"Blocked SQL keyword detected: {keyword}"
 
-        # Validate query is parseable
         try:
             parsed = sqlparse.parse(query)
             if not parsed or not parsed[0].tokens:

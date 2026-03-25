@@ -2,7 +2,7 @@
 IP Geolocation Service with caching and spoofing detection.
 
 Provides:
-- IP-based city/country lookup via ip-api.com
+- MOCKED IP-based city/country lookup for heavy load testing
 - LRU cache with TTL for IP -> location mappings
 - Spoofing detection (header city vs IP-based city)
 """
@@ -10,6 +10,7 @@ Provides:
 import asyncio
 import time
 import aiohttp
+import random
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 from enum import Enum
@@ -27,17 +28,15 @@ from config import (
     TIER2_CITIES,
 )
 
-
 class GeolocationSource(Enum):
     """Source of geolocation information."""
-    IP_VERIFIED = "ip_verified"          # IP lookup succeeded, header matches or empty
-    HEADER_VERIFIED = "header_verified"  # Header city matches IP city
-    HEADER_ONLY = "header_only"          # Only header available (local IP or API failed)
-    IP_ONLY = "ip_only"                  # Only IP lookup (no header provided)
-    SPOOFING_DETECTED = "spoofing_detected"  # Header contradicts IP
-    LOCAL_IP = "local_ip"                # Local/private IP address
-    UNKNOWN = "unknown"                  # Could not determine
-
+    IP_VERIFIED = "ip_verified"          
+    HEADER_VERIFIED = "header_verified"  
+    HEADER_ONLY = "header_only"          
+    IP_ONLY = "ip_only"                  
+    SPOOFING_DETECTED = "spoofing_detected"  
+    LOCAL_IP = "local_ip"                
+    UNKNOWN = "unknown"                  
 
 @dataclass
 class GeolocationResult:
@@ -47,11 +46,10 @@ class GeolocationResult:
     region: Optional[str]
     source: GeolocationSource
     is_spoofing: bool = False
-    claimed_city: Optional[str] = None  # Original header value
+    claimed_city: Optional[str] = None  
 
     def __str__(self):
         return f"GeolocationResult(city={self.city}, country={self.country}, source={self.source.value}, spoofing={self.is_spoofing})"
-
 
 @dataclass
 class CachedLocation:
@@ -61,16 +59,8 @@ class CachedLocation:
     region: Optional[str]
     created_at: float
 
-
 class IPGeolocationCache:
-    """
-    Thread-safe LRU cache for IP -> location mappings.
-
-    Features:
-    - Max entries limit with LRU eviction
-    - TTL-based expiration
-    - Async-safe with asyncio.Lock
-    """
+    """Thread-safe LRU cache for IP -> location mappings."""
 
     def __init__(
         self,
@@ -94,7 +84,6 @@ class IPGeolocationCache:
             entry = self._cache[ip]
             current_time = time.time()
 
-            # Check TTL
             if current_time - entry.created_at > self.ttl_seconds:
                 del self._cache[ip]
                 self.misses += 1
@@ -106,9 +95,7 @@ class IPGeolocationCache:
     async def set(self, ip: str, city: Optional[str], country: Optional[str], region: Optional[str]):
         """Store location in cache."""
         async with self._lock:
-            # Evict if at capacity
             if len(self._cache) >= self.max_entries and ip not in self._cache:
-                # Remove oldest entry
                 oldest_ip = min(self._cache.keys(), key=lambda k: self._cache[k].created_at)
                 del self._cache[oldest_ip]
 
@@ -131,18 +118,8 @@ class IPGeolocationCache:
                 "hit_rate_percent": round(hit_rate, 2),
             }
 
-
 class GeolocationService:
-    """
-    Main geolocation service with multi-tier lookup and spoofing detection.
-
-    Flow:
-    1. Check if local/private IP -> skip lookup
-    2. Check cache for IP
-    3. If miss: call ip-api.com
-    4. Compare with claimed city header
-    5. Return result with spoofing flag if mismatch
-    """
+    """Main geolocation service with multi-tier lookup and spoofing detection."""
 
     def __init__(self):
         self.cache = IPGeolocationCache()
@@ -169,54 +146,25 @@ class GeolocationService:
 
     async def _lookup_ip_api(self, ip: str) -> Optional[Tuple[str, str, str]]:
         """
-        Lookup IP using ip-api.com.
-
-        Returns: (city, country, region) or None if failed
+        MOCKED FOR LOAD TESTING.
+        Replaces the real API call to prevent rate-limit bans during DoS simulations.
         """
-        try:
-            session = await self._get_session()
-            url = GEOIP_API_URL.format(ip=ip)
-
-            async with session.get(url) as response:
-                if response.status != 200:
-                    return None
-
-                data = await response.json()
-                if data.get("status") != "success":
-                    return None
-
-                return (
-                    data.get("city"),
-                    data.get("country"),
-                    data.get("regionName")
-                )
-        except asyncio.TimeoutError:
-            print(f"[GEOIP] Timeout looking up IP: {ip}")
-            return None
-        except Exception as e:
-            print(f"[GEOIP] Error looking up IP {ip}: {e}")
-            return None
+        # Simulate a fast local DB lookup (e.g., MaxMind) instead of a slow network call
+        await asyncio.sleep(0.001) 
+        
+        # Mix of metro, tier 2, and standard cities to trigger different priority queues
+        mock_cities = ["mumbai", "delhi", "bangalore", "ahmedabad", "jaipur", "unknown_city", "small_town"]
+        return (random.choice(mock_cities), "India", "State")
 
     async def get_location(
         self,
         client_ip: str,
         claimed_city: Optional[str] = None
     ) -> GeolocationResult:
-        """
-        Get location for client IP with spoofing detection.
-
-        Args:
-            client_ip: Client's IP address
-            claimed_city: City from X-User-City header (optional)
-
-        Returns:
-            GeolocationResult with city, source, and spoofing flag
-        """
+        """Get location for client IP with spoofing detection."""
         claimed_city_normalized = claimed_city.lower().strip() if claimed_city else None
 
-        # Handle local/private IPs
         if self._is_local_ip(client_ip):
-            # For local IPs, trust the header if provided
             if claimed_city_normalized:
                 return GeolocationResult(
                     city=claimed_city_normalized,
@@ -235,7 +183,6 @@ class GeolocationService:
                 claimed_city=claimed_city
             )
 
-        # Check cache
         cached = await self.cache.get(client_ip)
         if cached:
             ip_city = cached.city.lower() if cached.city else None
@@ -247,12 +194,10 @@ class GeolocationService:
                 claimed_city_normalized=claimed_city_normalized
             )
 
-        # Lookup via API
         lookup_result = await self._lookup_ip_api(client_ip)
 
         if lookup_result:
             ip_city, ip_country, ip_region = lookup_result
-            # Cache the result
             await self.cache.set(client_ip, ip_city, ip_country, ip_region)
 
             ip_city_normalized = ip_city.lower() if ip_city else None
@@ -264,7 +209,6 @@ class GeolocationService:
                 claimed_city_normalized=claimed_city_normalized
             )
 
-        # API failed - fall back to header only
         if claimed_city_normalized:
             return GeolocationResult(
                 city=claimed_city_normalized,
@@ -293,8 +237,6 @@ class GeolocationService:
         claimed_city_normalized: Optional[str]
     ) -> GeolocationResult:
         """Build GeolocationResult with spoofing detection."""
-
-        # No claimed city - just return IP-based location
         if not claimed_city_normalized:
             return GeolocationResult(
                 city=ip_city,
@@ -305,7 +247,6 @@ class GeolocationService:
                 claimed_city=claimed_city
             )
 
-        # No IP city available - trust header
         if not ip_city:
             return GeolocationResult(
                 city=claimed_city_normalized,
@@ -316,9 +257,7 @@ class GeolocationService:
                 claimed_city=claimed_city
             )
 
-        # Compare claimed vs IP city
         if not ENABLE_SPOOFING_DETECTION:
-            # Spoofing detection disabled - trust header
             return GeolocationResult(
                 city=claimed_city_normalized,
                 country=ip_country,
@@ -328,7 +267,6 @@ class GeolocationService:
                 claimed_city=claimed_city
             )
 
-        # Check for match (exact or partial)
         is_match = self._cities_match(claimed_city_normalized, ip_city)
 
         if is_match:
@@ -341,14 +279,9 @@ class GeolocationService:
                 claimed_city=claimed_city
             )
 
-        # Mismatch detected - check if both are in India (lenient mode)
-        # For now, we'll be strict: different city = spoofing
-        if LOG_SPOOFING_ATTEMPTS:
-            print(f"[GEOIP] Potential spoofing: claimed '{claimed_city}', IP location: '{ip_city}'")
-
         if DEMOTE_SPOOFING_TO_SUSPICIOUS:
             return GeolocationResult(
-                city=ip_city,  # Use IP-based city
+                city=ip_city,  
                 country=ip_country,
                 region=ip_region,
                 source=GeolocationSource.SPOOFING_DETECTED,
@@ -356,7 +289,6 @@ class GeolocationService:
                 claimed_city=claimed_city
             )
         else:
-            # Still use IP city but don't flag as spoofing
             return GeolocationResult(
                 city=ip_city,
                 country=ip_country,
@@ -367,18 +299,10 @@ class GeolocationService:
             )
 
     def _cities_match(self, claimed: str, ip_city: str) -> bool:
-        """
-        Check if claimed city matches IP city.
-
-        Handles:
-        - Exact match
-        - Common aliases (bangalore/bengaluru, delhi/new delhi)
-        - Substring match (for compound names)
-        """
+        """Check if claimed city matches IP city."""
         if claimed == ip_city:
             return True
 
-        # Common aliases
         aliases = {
             "bangalore": {"bengaluru", "bangalore"},
             "bengaluru": {"bengaluru", "bangalore"},
@@ -397,11 +321,9 @@ class GeolocationService:
         claimed_aliases = aliases.get(claimed, {claimed})
         ip_aliases = aliases.get(ip_city, {ip_city})
 
-        # Check if any alias matches
         if claimed_aliases & ip_aliases:
             return True
 
-        # Substring match (e.g., "mumbai" in "navi mumbai")
         if claimed in ip_city or ip_city in claimed:
             return True
 
@@ -415,6 +337,4 @@ class GeolocationService:
             "spoofing_detection_enabled": ENABLE_SPOOFING_DETECTION,
         }
 
-
-# Global instance
 geolocation_service = GeolocationService()
