@@ -1,19 +1,17 @@
 import { useState } from 'react';
 import './App.css';
+import StudentPage from './pages/StudentPage';
+import InstructorPage from './pages/InstructorPage';
+import AdminPage from './pages/AdminPage';
 
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loggedInUser, setLoggedInUser] = useState('');
+  const [loggedInName, setLoggedInName] = useState('');
+  const [loggedInUsername, setLoggedInUsername] = useState('');
   const [role, setRole] = useState('');
-
-  const roleTitles = {
-    student: 'Student Page',
-    instructor: 'Instructor Page',
-    admin: 'Admin Page',
-  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -46,7 +44,8 @@ function App() {
       const receivedRole = (data.role || '').toLowerCase();
       if (['student', 'instructor', 'admin'].includes(receivedRole)) {
         setRole(receivedRole);
-        setLoggedInUser(data.name || data.username || username);
+        setLoggedInName(data.name || '');
+        setLoggedInUsername(data.username || username);
         setStatus('');
       } else {
         setStatus('Role missing or unsupported for this user.');
@@ -60,23 +59,55 @@ function App() {
 
   const handleLogout = () => {
     setRole('');
-    setLoggedInUser('');
+    setLoggedInName('');
+    setLoggedInUsername('');
     setPassword('');
     setStatus('You have logged out.');
   };
 
   if (role) {
+    if (role === 'student') {
+      return (
+        <main className="erp-page">
+          <StudentPage
+            displayName={loggedInName}
+            username={loggedInUsername}
+            onLogout={handleLogout}
+          />
+        </main>
+      );
+    }
+
+    if (role === 'instructor') {
+      return (
+        <main className="erp-page">
+          <InstructorPage
+            displayName={loggedInName}
+            username={loggedInUsername}
+            onLogout={handleLogout}
+          />
+        </main>
+      );
+    }
+
+    if (role === 'admin') {
+      return (
+        <main className="erp-page">
+          <AdminPage
+            displayName={loggedInName}
+            username={loggedInUsername}
+            onLogout={handleLogout}
+          />
+        </main>
+      );
+    }
+
     return (
       <main className="erp-page">
-        <section className="login-card role-card">
-          <h1>{roleTitles[role]}</h1>
-          <p className="subtitle">Welcome, {loggedInUser || 'User'}</p>
-          <p className="role-description">
-            You were redirected based on your role: <strong>{role}</strong>.
-          </p>
-          <button type="button" className="logout-btn" onClick={handleLogout}>
-            Logout
-          </button>
+        <section className="login-card">
+          <h1>Unsupported Role</h1>
+          <p className="subtitle">Role: {role}</p>
+          <button type="button" className="logout-btn" onClick={handleLogout}>Logout</button>
         </section>
       </main>
     );

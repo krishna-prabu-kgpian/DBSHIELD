@@ -89,6 +89,82 @@
   font-size: 0.95rem;
 }
 
+.dashboard-card {
+  width: 100%;
+  max-width: 920px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #dde6ff;
+  box-shadow: 0 16px 40px rgba(28, 54, 109, 0.12);
+  padding: 28px;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-header h1 {
+  margin: 0;
+  color: #1d2f57;
+}
+
+.panel-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.panel {
+  border: 1px solid #dbe6ff;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fbff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel h3 {
+  margin: 0;
+  color: #28437a;
+  font-size: 1rem;
+}
+
+.panel input {
+  border: 1px solid #bfd1ff;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 0.92rem;
+}
+
+.panel button {
+  border: none;
+  border-radius: 8px;
+  padding: 9px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #ffffff;
+  background: #2e5ad9;
+}
+
+.panel ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #2f477d;
+  font-size: 0.9rem;
+}
+
+.tiny-note {
+  margin: 0;
+  color: #5b6f9b;
+  font-size: 0.85rem;
+}
+
 .logout-btn {
   border: none;
   border-radius: 8px;
@@ -103,6 +179,15 @@
 @media (max-width: 480px) {
   .login-card {
     padding: 22px;
+  }
+
+  .dashboard-card {
+    padding: 18px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .login-card h1 {
