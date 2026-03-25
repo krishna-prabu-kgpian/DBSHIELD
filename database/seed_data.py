@@ -3,20 +3,30 @@ import random
 import sys
 from decimal import Decimal
 from pathlib import Path
-
+from dotenv import load_dotenv
 import psycopg
 from psycopg import sql
+import os
 
+BASE_DIR = Path(__file__).resolve().parent
+ENV_PATH = BASE_DIR.parent / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
+
+host = os.getenv("DB_HOST")
+port = os.getenv("DB_PORT")
+dbname = os.getenv("DB_NAME")
+user = os.getenv("DB_USER")
+password = os.getenv("DB_PASSWORD")
 
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
 		description="Reset PostgreSQL tables, apply schema SQL, and seed arbitrary data."
 	)
-	parser.add_argument("--host", default="10.5.18.103", help="PostgreSQL host")
-	parser.add_argument("--port", type=int, default=5432, help="PostgreSQL port")
-	parser.add_argument("--user", default="23CS30027", help="PostgreSQL username")
-	parser.add_argument("--password", default="23CS30027", help="PostgreSQL password")
-	parser.add_argument("--dbname", default="23CS30027", help="PostgreSQL database name")
+	parser.add_argument("--host", default=host, help="PostgreSQL host")
+	parser.add_argument("--port", type=int, default=port, help="PostgreSQL port")
+	parser.add_argument("--user", default=user, help="PostgreSQL username")
+	parser.add_argument("--password", default=password, help="PostgreSQL password")
+	parser.add_argument("--dbname", default=dbname, help="PostgreSQL database name")
 	parser.add_argument(
 		"--sql-file",
 		default=str(Path(__file__).resolve().parents[1] / "database" / "tables.sql"),
