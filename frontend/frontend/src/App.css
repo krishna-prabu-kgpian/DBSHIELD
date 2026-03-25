@@ -1,38 +1,90 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
+.erp-page {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  padding: 24px;
+  background: linear-gradient(145deg, #eef3ff 0%, #f7fbff 55%, #e9f0ff 100%);
 }
 
-.App-link {
-  color: #61dafb;
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #dde6ff;
+  box-shadow: 0 16px 40px rgba(28, 54, 109, 0.12);
+  padding: 28px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+.login-card h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  color: #1d2f57;
+}
+
+.subtitle {
+  margin: 8px 0 22px;
+  color: #5a6f9c;
+  font-size: 0.95rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-form label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #334f8f;
+}
+
+.login-form input {
+  border: 1px solid #bfd1ff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  color: #1e325d;
+  background: #fbfdff;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: #4f7cff;
+  box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.2);
+}
+
+.login-form button {
+  margin-top: 8px;
+  border: none;
+  border-radius: 8px;
+  padding: 11px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #ffffff;
+  background: linear-gradient(120deg, #2e5ad9, #4c78ff);
+}
+
+.login-form button:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.status-message {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  color: #28437a;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 22px;
   }
-  to {
-    transform: rotate(360deg);
+
+  .login-card h1 {
+    font-size: 1.3rem;
   }
 }
