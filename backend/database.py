@@ -1,6 +1,14 @@
 import psycopg2
 from psycopg2.extras import RealDictConnection, RealDictCursor
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+BASE_DIR = Path(__file__).resolve().parent
+ENV_PATH = BASE_DIR.parent / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
 
 host = os.getenv("DB_HOST")
 port = os.getenv("DB_PORT")

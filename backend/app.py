@@ -34,9 +34,13 @@ def login(payload: LoginPayload) -> dict[str, str]:
 
     result = handle_student_login(username, password)
     if not result:
-        return {"message": "Not Present"}
-    
-    else:
-        user = result["username"]
-        pass_word = result["password"]
-        return {"message": f"Authorizing {user} with password {pass_word}"}
+        return {"message": "Invalid credentials."}
+
+    role = str(result.get("role", "")).lower()
+    user = str(result.get("username", username))
+    name = str(result.get("name", ""))
+
+    if role not in {"student", "instructor", "admin"}:
+        return {"message": "Login successful.", "username": user, "role": "student", "name": name}
+
+    return {"message": "Login successful.", "username": user, "role": role, "name": name}

@@ -6,6 +6,14 @@ function App() {
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loggedInUser, setLoggedInUser] = useState('');
+  const [role, setRole] = useState('');
+
+  const roleTitles = {
+    student: 'Student Page',
+    instructor: 'Instructor Page',
+    admin: 'Admin Page',
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -35,13 +43,44 @@ function App() {
         throw new Error(data.detail || 'Login request failed.');
       }
 
-      setStatus(data.message || 'Credentials submitted.');
+      const receivedRole = (data.role || '').toLowerCase();
+      if (['student', 'instructor', 'admin'].includes(receivedRole)) {
+        setRole(receivedRole);
+        setLoggedInUser(data.name || data.username || username);
+        setStatus('');
+      } else {
+        setStatus('Role missing or unsupported for this user.');
+      }
     } catch (error) {
       setStatus(error.message || 'Could not connect to server.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleLogout = () => {
+    setRole('');
+    setLoggedInUser('');
+    setPassword('');
+    setStatus('You have logged out.');
+  };
+
+  if (role) {
+    return (
+      <main className="erp-page">
+        <section className="login-card role-card">
+          <h1>{roleTitles[role]}</h1>
+          <p className="subtitle">Welcome, {loggedInUser || 'User'}</p>
+          <p className="role-description">
+            You were redirected based on your role: <strong>{role}</strong>.
+          </p>
+          <button type="button" className="logout-btn" onClick={handleLogout}>
+            Logout
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="erp-page">

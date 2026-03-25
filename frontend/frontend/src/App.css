@@ -79,6 +79,27 @@
   color: #28437a;
 }
 
+.role-card {
+  text-align: center;
+}
+
+.role-description {
+  margin: 14px 0 20px;
+  color: #2a457f;
+  font-size: 0.95rem;
+}
+
+.logout-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #ffffff;
+  background: #244fbf;
+}
+
 @media (max-width: 480px) {
   .login-card {
     padding: 22px;
