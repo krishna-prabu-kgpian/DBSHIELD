@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 import os
 import sqlite3
-from decimal import Decimal
 
 from dotenv import load_dotenv
 
@@ -127,9 +126,7 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 
 	student_rows = []
 	for user_id in range(2, total_users + 1):
-		cgpa_value = (Decimal(random.randint(0, 1000)) / Decimal("100")).quantize(
-			Decimal("0.00")
-		)
+		cgpa_value = round(random.uniform(0.0, 10.0), 2)
 		student_rows.append(
 			(
 				user_id,
