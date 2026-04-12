@@ -20,19 +20,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from config import (
+from ddos_prevention.config import (
     RATE_LIMIT_THRESHOLD,
-    RATE_LIMIT_WINDOW,
-    METRO_CITIES,
-    TIER2_CITIES,
-    PRIORITY_METRO_VERIFIED,
-    PRIORITY_METRO_CLAIMED,
-    PRIORITY_TIER2_CITY,
-    PRIORITY_STANDARD,
-    PRIORITY_SUSPICIOUS,
+    RATE_LIMIT_WINDOW
 )
-from rate_limiter import IPRateLimiter, BoundedQueryHistory, RequestValidator
-from cache import (
+from ddos_prevention.rate_limiter import IPRateLimiter, BoundedQueryHistory, RequestValidator
+from ddos_prevention.cache import (
     FullResultCache,
     IntermediateResultCache,
     QuerySupersetDetector,
@@ -40,9 +33,6 @@ from cache import (
     compute_full_cache_key,
     normalize_and_hash,
 )
-from workers import WorkerPool
-from geolocation import geolocation_service, GeolocationResult, GeolocationSource
-
 
 # --- Global Instances ---
 ip_limiter = IPRateLimiter()
@@ -50,41 +40,8 @@ request_validator = RequestValidator()
 full_cache = FullResultCache()
 intermediate_cache = IntermediateResultCache()
 query_history = BoundedQueryHistory()
-worker_pool = WorkerPool()
 query_parser = QuerySupersetDetector()
 memory_filter = InMemoryFilter()
-
-
-# --- Priority Computation ---
-def _compute_priority(geo_result: GeolocationResult) -> int:
-    city = geo_result.city.lower() if geo_result.city else ""
-
-    if geo_result.is_spoofing:
-        return PRIORITY_SUSPICIOUS
-
-    if geo_result.source in (
-        GeolocationSource.IP_VERIFIED,
-        GeolocationSource.HEADER_VERIFIED,
-        GeolocationSource.IP_ONLY
-    ):
-        if city in METRO_CITIES:
-            return PRIORITY_METRO_VERIFIED
-        if city in TIER2_CITIES:
-            return PRIORITY_TIER2_CITY
-        return PRIORITY_STANDARD
-
-    if geo_result.source in (
-        GeolocationSource.HEADER_ONLY,
-        GeolocationSource.LOCAL_IP
-    ):
-        if city in METRO_CITIES:
-            return PRIORITY_METRO_CLAIMED
-        if city in TIER2_CITIES:
-            return PRIORITY_TIER2_CITY
-        return PRIORITY_STANDARD
-
-    return PRIORITY_STANDARD
-
 
 # --- Background Tasks ---
 async def periodic_cleanup():
@@ -97,15 +54,12 @@ async def periodic_cleanup():
 # --- App Lifecycle ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await worker_pool.start()
     cleanup_task = asyncio.create_task(periodic_cleanup())
-    print("[SHIELD] DDoS Shield initialized with intelligent caching and geolocation")
+    print("[SHIELD] DDoS Shield initialized with intelligent caching")
 
     yield
 
     cleanup_task.cancel()
-    await worker_pool.stop()
-    await geolocation_service.close()
     print("[SHIELD] Shutdown complete")
 
 
@@ -198,18 +152,21 @@ async def execute_query(
             detail="Rate limit exceeded for this query structure"
         )
 
-    # --- LAYER 6: Geolocation & Priority Assignment ---
-    geo_result = await geolocation_service.get_location(client_ip, x_user_city)
-    city_normalized = geo_result.city.lower() if geo_result.city else "unknown"
-    priority = _compute_priority(geo_result)
-
-    if geo_result.is_spoofing:
-        print(f"[SPOOFING] IP {client_ip} claimed '{geo_result.claimed_city}', actual: '{geo_result.city}'")
-
+    # --- LAYER 6: Execute Query Direct ---
+    # Since we removed the worker pool, we perform mock execution directly here.
+    # In production, this would execute against a real database.
     try:
-        result = await worker_pool.submit(raw_query, priority, city_normalized)
-    except TimeoutError as e:
-        raise HTTPException(status_code=504, detail=str(e))
+        await asyncio.sleep(0.05)  # Simulate DB latency
+        import re
+        student_match = re.search(r'student_id\s*=\s*(\d+)', raw_query, re.IGNORECASE)
+        student_id = int(student_match.group(1)) if student_match else 12345
+
+        result = [
+            {"student_id": student_id, "grade": 95, "subject": "Math", "attendance": 92},
+            {"student_id": student_id, "grade": 88, "subject": "Science", "attendance": 88},
+            {"student_id": student_id, "grade": 72, "subject": "History", "attendance": 95},
+            {"student_id": student_id, "grade": 65, "subject": "Art", "attendance": 80},
+        ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query execution failed: {str(e)}")
 
@@ -220,15 +177,11 @@ async def execute_query(
         await intermediate_cache.set(parsed_query, result)
 
     latency = time.time() - start_time
-    print(f"[EXECUTED] IP: {client_ip} | City: {city_normalized} | Priority: {priority} | Latency: {latency:.4f}s")
+    print(f"[EXECUTED] IP: {client_ip} | Latency: {latency:.4f}s")
 
     return {
         "status": "executed",
         "result": result,
-        "priority": priority,
-        "city": city_normalized,
-        "geo_source": geo_result.source.value,
-        "is_spoofing": geo_result.is_spoofing,
         "latency_ms": round(latency * 1000, 2)
     }
 
@@ -246,16 +199,12 @@ async def get_stats():
     intermediate_cache_stats = await intermediate_cache.get_stats()
     query_history_stats = await query_history.get_stats()
     ip_limiter_stats = await ip_limiter.get_stats()
-    worker_stats = await worker_pool.get_stats()
-    geolocation_stats = await geolocation_service.get_stats()
 
     return {
         "full_cache": full_cache_stats,
         "intermediate_cache": intermediate_cache_stats,
         "query_history": query_history_stats,
-        "ip_rate_limiter": ip_limiter_stats,
-        "workers": worker_stats,
-        "geolocation": geolocation_stats,
+        "ip_rate_limiter": ip_limiter_stats
     }
 
 

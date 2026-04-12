@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 
-from config import (
+from .config import (
     FULL_CACHE_MAX_ENTRIES,
     FULL_CACHE_MAX_MEMORY_BYTES,
     FULL_CACHE_TTL_SECONDS,

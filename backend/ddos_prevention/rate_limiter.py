@@ -9,7 +9,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple
 
-from config import (
+from .config import (
     IP_REQUESTS_PER_SECOND,
     IP_REQUESTS_PER_MINUTE,
     IP_MAX_CONNECTIONS,
