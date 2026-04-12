@@ -136,7 +136,9 @@ def seed_data(connection: psycopg.Connection, total_users: int, batch_size: int)
 
 	student_rows = []
 	for user_id in range(2, total_users + 1):
-		cgpa_value = Decimal(f"{random.randint(10, 99)}.{random.randint(0, 99):02d}")
+		cgpa_value = (Decimal(random.randint(0, 1000)) / Decimal("100")).quantize(
+			Decimal("0.00")
+		)
 		student_rows.append(
 			(
 				user_id,

@@ -11,6 +11,6 @@ create table if not exists users (
 create table if not exists students (
     id serial primary key,
     user_id integer references users(id) on delete cascade,
-    cgpa numeric(4, 2) not null,
+    cgpa numeric(4, 2) not null check (cgpa >= 0.00 and cgpa <= 10.00),
     graduation_year integer not null
 );

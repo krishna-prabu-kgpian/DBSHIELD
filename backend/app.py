@@ -3,7 +3,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from database import connect_to_db, handle_student_login
 
+# Import DDoS protection modules
+from ddos_prevention.rate_limiter import IPRateLimiter
+
 app = FastAPI(title="DBSHIELD Backend")
+
+# =====================================================================
+# DEMONSTRATION TOGGLE
+# Set this to True to enable the DDOS protection layer
+# Set this to False to simulate an unprotected backend
+ENABLE_DDOS_PROTECTION = False 
+# =====================================================================
+
+ip_limiter = IPRateLimiter()
+
+@app.middleware("http")
+async def ddos_protection_middleware(request, call_next):
+    if ENABLE_DDOS_PROTECTION:
+        client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+        is_allowed, block_reason = await ip_limiter.check_ip(client_ip)
+        
+        if not is_allowed:
+            from fastapi.responses import JSONResponse
+            print(f"[BLOCKED] IP {client_ip}: {block_reason}")
+            return JSONResponse(status_code=429, content={"detail": block_reason})
+            
+    response = await call_next(request)
+    return response
 
 app.add_middleware(
 	CORSMiddleware,

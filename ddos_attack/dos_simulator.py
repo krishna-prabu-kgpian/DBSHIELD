@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 
 # --- Configuration ---
-BASE_URL = "http://127.0.0.1:8001"
-TARGET_URL = f"{BASE_URL}/execute-query"
+BASE_URL = "http://127.0.0.1:8000"
+TARGET_URL = f"{BASE_URL}/api/login"
 STATS_URL = f"{BASE_URL}/stats"
 HEALTH_URL = f"{BASE_URL}/health"
 
@@ -56,7 +56,7 @@ class TestRunner:
             hdrs = {"Content-Type": "application/json", "X-Forwarded-For": self.current_ip}
             if headers:
                 hdrs.update(headers)
-            async with self.session.post(TARGET_URL, json={"query": query}, headers=hdrs) as resp:
+            async with self.session.post(TARGET_URL, json={"username": "fake_user", "password": "fake_password"}, headers=hdrs) as resp:
                 data = await resp.json()
                 latency = (time.time() - start) * 1000
                 return resp.status, data, latency
