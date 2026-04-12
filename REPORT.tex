@@ -1,0 +1,238 @@
+\documentclass[11pt,a4paper]{article}
+
+% =========================================================
+% EASY CONTROLS
+% Change only these first when you want to tune the layout.
+% =========================================================
+\usepackage[
+    a4paper,
+    top=1.0in,
+    bottom=1.0in,
+    left=1.02in,
+    right=1.02in
+]{geometry} % Make left/right smaller to widen the text block
+
+\newcommand{\TitleFont}{\fontsize{15.5}{17.5}\selectfont}
+\newcommand{\AuthorFont}{\normalsize}
+\newcommand{\AffilFont}{\small}
+\newcommand{\AbstractFont}{\small}
+\renewcommand{\baselinestretch}{1.04} % Slightly fuller text without looking loose
+
+% =========================================================
+% PACKAGES
+% =========================================================
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{newtxtext,newtxmath} % Times-like research paper font
+\usepackage{microtype}           % Better line breaking / more paper-like justification
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{setspace}
+\usepackage{xcolor}
+
+% =========================================================
+% GENERAL FORMATTING
+% =========================================================
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\setlength{\parindent}{1.2em}
+\setlength{\parskip}{0pt}
+\setlength{\emergencystretch}{1.5em} % Helps reduce overfull lines gracefully
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.7em}{}
+\titlespacing*{\section}{0pt}{1.4ex plus 0.4ex minus 0.2ex}{0.7ex}
+\titlespacing*{\subsection}{0pt}{1.0ex plus 0.3ex minus 0.2ex}{0.5ex}
+
+\captionsetup{
+    font=small,
+    labelfont=bf
+}
+
+\setlist[itemize]{
+    leftmargin=1.4em,
+    itemsep=0.15em,
+    topsep=0.25em
+}
+
+\setlist[enumerate]{
+    leftmargin=1.6em,
+    itemsep=0.15em,
+    topsep=0.25em
+}
+
+% =========================================================
+% TITLE
+% =========================================================
+\title{}
+\author{}
+\date{}
+
+\begin{document}
+
+\begin{center}
+{\TitleFont\bfseries
+DBSHIELD --- DataBase Systems Handling for Injection, Exploitation, Leakage, and DoS
+\par}
+
+\vspace{0.65em}
+
+{\small
+\begin{tabular}{c}
+Arnav Priyadarshi (23CS30008) \quad
+Ketan Suman (23CS30027) \quad
+Krishna Prabu (23CS30028) \\[0.25em]
+Rahul Chandrakant Patne (23CS10084) \quad
+Shreeraj Kalbande (23CS30025) \\[0.35em]
+\end{tabular}
+\par}
+
+\vspace{0.7em}
+\end{center}
+
+\section{Problem Statement}
+
+Modern web applications depend heavily on databases to store and process sensitive information such as credentials, personal records, academic data, and administrative entries. Thus, it is important to study and understand how to construct secure databases. Ignoring this often leads to insecure design decisions such as unsafe query construction, weak validation of user-controlled input, insufficient server-side access checks, and inadequate controls against computational abuse. When such weaknesses exist in a database-backed system, the consequences can include unauthorized access, leakage of sensitive information, loss of service availability and more.
+
+We present the \textbf{DBSHIELD} project, motivated by the need to demonstrate that these issues are not merely theoretical, but can arise in many places during development. Many users and developers underestimate how severely a database system can be affected when core security mechanisms are absent or improperly implemented. Instead of discussing these risks only in abstract terms, we aim to present through this project a direct comparison between two versions of the same application: an \textit{unshielded} system that is intentionally vulnerable for controlled demonstration, and a \textit{shielded} system that includes appropriate safeguards. This side-by-side design makes the role of security measures obvious, and shows how without them the system can be significantly harmed.
+
+The application selected for this project is a mock student ERP system with three roles: \textit{student}, \textit{teacher}, and \textit{admin}. We selected this setting as it is something the intended audience can relate to easily, and reflects a realistic role-based application in which users authenticate, access restricted information, perform role-specific actions, and interact with shared database records. Such a system will naturally expose the central security requirements of authentication, data isolation and resilience. It therefore provides a practical environment in which database related vulnerabilities and their mitigations can be examined in a meaningful way.
+
+We focus on three representative classes of attack. The first is \textit{SQL injection}, which targets the interaction between user input and backend query execution. When queries are not handled safely, SQL injection may allow login bypass, unauthorized reads, and unintended modifications to database contents. The second is \textit{denial of service}, studied here in the form of expensive application or database requests that can degrade responsiveness or exhaust resources. The third is \textit{authorization bypass}, where a user attempts to access resources or operations outside the limits of their intended role, particularly in systems that trust client-side verification such as cookies over server-side verification.
+
+% The central aim of DBSHIELD is not to build an offensive toolset, but to illustrate the importance of defensive engineering in database-backed applications. By observing how the unshielded system behaves under controlled adversarial testing and comparing it with the hardened system, the project seeks to show that common safeguards can significantly reduce risk. In this sense, DBSHIELD is both a comparative security study and a practical demonstration of why secure database interaction, strict role enforcement, and protective backend design are essential in modern software systems.
+
+\section{Methodology}
+
+\subsection{Overall Study Design}
+
+Two functionally similar versions of the same student ERP application are designed and studied:
+
+\begin{itemize}
+    \item \textbf{Unshielded system:} A deliberately vulnerable implementation in which protections are absent, to demonstrate the importance of defending against attacks.
+    \item \textbf{Shielded system:} A hardened implementation that preserves the same functionality while incorporating defensive mechanisms to prevent attacks.
+\end{itemize}
+
+This paired design helps isolate the effect of security controls. Since both systems serve the same use case and operate on the same general model of data and user roles, differences in observed behavior can be attributed more clearly to the presence or absence of safeguards rather than to unrelated architectural changes.
+
+\subsection{System Under Study}
+
+The application modeled in this project is a student ERP system with three user roles:
+
+\begin{itemize}
+    \item \textbf{Student:} Accesses personal details, academic information, and self-related records. Can enroll in courses, deregister from courses, but not view or interact with other students.
+    \item \textbf{Teacher:} Accesses and updates academic information related to students and courses. Can create courses, modify contents, but cannot modify other teacher's courses.
+    \item \textbf{Admin:} manages users, records, and privileged system-level operations.
+\end{itemize}
+
+This role structure is intentionally chosen because it captures a realistic multi-user scenario in which different permissions must be enforced over the same database. It provides a suitable basis for studying authentication flows, role-based restrictions, protected data access, and misuse of sensitive operations.
+
+\subsection{Technology Stack}
+
+The system uses a web-application stack composed of the following components:
+
+\begin{itemize}
+    \item \textbf{Frontend:} React is used to build the user-facing interface, including login pages, dashboards, navigation, and role-specific views.
+    \item \textbf{Backend:} FastAPI is used to implement API endpoints, application logic, authentication handling, request processing, and access control logic.
+    \item \textbf{Database:} PostgreSQL and SQLite is used as the relational data store for user accounts, role information, academic records, and related entities.
+\end{itemize}
+
+\subsection{Unshielded and Shielded Implementations}
+
+In both the cases, the FastAPI backend is responsible for retrieving from the database, perform logical operations, checking and communicating the result to the frontend.
+
+In the \textit{Unshielded Implementation}, the raw SQL is directly fed, without any additional checking, to the database to fetch data. This can cause issues such as SQL Injection, DoS and Authorization Bypass, which are discussed later. The result similarly is directly fed to the user, without verification.
+
+In the \textit{Shielded Implementation}, the input from the frontend is processed, checked for potential SQL Injection attacks, checked for DoS attacks, and is only then processed. This avoids issues that used to arise in the unshielded implementation.
+
+\subsection{SQL Injection Study}
+
+The first attack category focuses on SQL injection. The purpose of this part is to evaluate whether user-supplied input can alter backend query behavior in ways that compromise authentication, reveal data, or affect database integrity. In the unshielded system, controlled adversarial inputs are supplied to input surfaces such as login-related or database-facing request parameters. The study considers representative categories such as authentication bypass attempts, boolean inference, disclosure-oriented query manipulation, and unauthorized modification attempts.
+
+The same broad categories of tests are then repeated against the shielded system. The expected outcome is that secure handling of database queries prevents the input from changing query semantics, reduces information leakage, and preserves the integrity of stored records. The comparison is therefore based not only on whether the attack succeeds, but also on how safely the application behaves in the face of malformed or adversarial input.
+
+\subsection{Denial of Service Study}
+
+The second attack category focuses on denial of service in the context of application and database resource abuse. In this project, denial of service is not treated as a raw network flooding exercise, but as a study of whether expensive or poorly bounded requests can degrade responsiveness, consume disproportionate resources, or make the system unstable. The unshielded system is examined using controlled requests that are expected to trigger heavy backend or database work.
+
+The shielded system is then evaluated under the same workload patterns. The expectation is that defensive mechanisms such as better request filtering, bounded execution, query restrictions, or rate-aware handling will reduce performance degradation and improve service stability. The comparison emphasizes availability and resilience rather than only whether a single request succeeds.
+
+\subsection{Authorization Bypass Study}
+
+The third attack category studies authorization bypass. Because the ERP has clearly separated user roles, it is important to evaluate whether a user can access functions or records beyond their intended permissions. This includes scenarios such as requesting pages intended for another role, directly invoking restricted backend endpoints, or attempting to retrieve or modify records that should not be accessible under the current identity.
+
+The unshielded system is used to study whether role separation is enforced weakly or only on the client side. The shielded system is then used to verify whether access control is consistently enforced on the server for every protected action. The comparison highlights the difference between superficial interface-based restrictions and proper backend authorization.
+
+\subsection{Evaluation Criteria}
+
+For each attack category, the final comparison between the unshielded and shielded systems is organized using the following criteria:
+
+\begin{itemize}
+    \item \textbf{Attack success:} whether the intended misuse achieves its goal.
+    \item \textbf{Impact scope:} what data, role, or service is affected.
+    \item \textbf{Response behavior:} whether the system leaks information, hangs, returns unsafe errors, or fails in a controlled way.
+    \item \textbf{Resilience:} whether the application remains stable and recoverable during and after testing.
+    \item \textbf{Mitigation effectiveness:} whether the shielded system prevents or significantly limits the observed issue.
+\end{itemize}
+
+\section{Planned Remaining Structure}
+
+The report is intended to expand into a compact ten-page document. After the problem statement and methodology, the remaining sections can be developed in the following order:
+
+\begin{itemize}
+    \item a section describing the system architecture and technology choices in more detail,
+    \item one section each for SQL injection, denial of service, and authorization bypass,
+    \item a results section comparing the unshielded and shielded implementations,
+    \item a references section.
+\end{itemize}
+
+Each attack section can later describe the attack goal, the part of the ERP being tested, the controlled test cases used, and the expected difference between the vulnerable and hardened versions of the system.
+
+\section{Results Placeholder}
+
+This section is currently a placeholder. In the next stage, it can summarize the observed behavior of the unshielded and shielded systems under the three attack categories. The final comparison can include attack success, service degradation, unauthorized access, information exposure, and the effect of the applied safeguards.
+
+\section{References Placeholder}
+
+A later version of the report can include references to relevant documentation and defensive security material related to the stack and attack categories used in the project.
+
+\begin{thebibliography}{9}
+
+\bibitem{owasp-top10}
+OWASP Foundation.
+\textit{OWASP Top 10}.
+Available online.
+
+\bibitem{owasp-sqli}
+OWASP Foundation.
+\textit{SQL Injection Prevention Cheat Sheet}.
+Available online.
+
+\bibitem{postgres}
+PostgreSQL Global Development Group.
+\textit{PostgreSQL Documentation}.
+Available online.
+
+\bibitem{fastapi}
+FastAPI.
+\textit{FastAPI Documentation}.
+Available online.
+
+\bibitem{react}
+React.
+\textit{React Documentation}.
+Available online.
+
+\end{thebibliography}
+
+\end{document}
