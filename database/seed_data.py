@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 import os
 import sqlite3
+from decimal import Decimal
 
 from dotenv import load_dotenv
 
