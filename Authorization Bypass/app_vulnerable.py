@@ -15,6 +15,15 @@ from pydantic import BaseModel
 
 # Import authentication from original backend database
 from auth_database import authenticate_user
+from db_utils import (
+    search_courses_db,
+    get_student_grades_db,
+    enroll_student_db,
+    admit_student_to_course_db,
+    assign_grade_to_student_db,
+    create_assignment_db,
+    execute_admin_action_db
+)
 
 app = FastAPI(title="DBSHIELD Backend - VULNERABLE VERSION")
 
@@ -63,56 +72,7 @@ class AssignmentPayload(BaseModel):
     title: str
 
 
-# ============== Placeholder Functions ==============
-
-def search_courses_placeholder(query: str) -> list[dict[str, str]]:
-    all_courses = [
-        {"code": "CS101", "title": "Intro to Programming"},
-        {"code": "CS205", "title": "Data Structures"},
-        {"code": "MA201", "title": "Discrete Mathematics"},
-        {"code": "HS110", "title": "Communication Skills"},
-    ]
-    term = query.strip().lower()
-    if not term:
-        return all_courses
-    return [
-        course
-        for course in all_courses
-        if term in course["code"].lower() or term in course["title"].lower()
-    ]
-
-
-def student_grades_placeholder(student_username: str) -> list[dict[str, str]]:
-    """VULNERABLE: Returns grades for ANY student without verification."""
-    return [
-        {"course": "CS101", "grade": "A"},
-        {"course": "MA201", "grade": "B+"},
-        {"course": "CS205", "grade": "A-"},
-    ]
-
-
-def enroll_course_placeholder(student_username: str, course_code: str) -> dict[str, str]:
-    return {"message": f"Enrollment request accepted for {student_username} in {course_code}."}
-
-
-def admit_student_placeholder(student_username: str, course_code: str) -> dict[str, str]:
-    """VULNERABLE: ANY user can admit students, not just instructors."""
-    return {"message": f"Instructor admitted {student_username} to {course_code}."}
-
-
-def assign_grade_placeholder(student_username: str, course_code: str, grade: str) -> dict[str, str]:
-    """VULNERABLE: ANY user can assign grades, not just instructors."""
-    return {"message": f"Grade {grade} assigned to {student_username} for {course_code}."}
-
-
-def create_assignment_placeholder(course_code: str, title: str) -> dict[str, str]:
-    """VULNERABLE: ANY user can create assignments, not just instructors."""
-    return {"message": f"Assignment '{title}' created for {course_code}."}
-
-
-def admin_do_anything_placeholder(action: str) -> dict[str, str]:
-    """VULNERABLE: ANY user can perform admin actions, not just admins."""
-    return {"message": f"Admin action placeholder executed: {action}"}
+# ============== Database Functions (Real Data) ==============
 
 
 # ============== Endpoints ==============
@@ -150,56 +110,56 @@ def login(payload: LoginPayload) -> dict[str, str]:
 # ❌ VULNERABLE: No authorization checks below
 
 @app.post("/api/student/search-courses")
-def student_search_courses(payload: CourseSearchPayload) -> dict[str, list[dict[str, str]]]:
-    return {"courses": search_courses_placeholder(payload.query)}
+def student_search_courses(payload: CourseSearchPayload) -> dict:
+    return {"courses": search_courses_db(payload.query)}
 
 
 @app.post("/api/student/view-grades")
-def student_view_grades(payload: StudentGradePayload) -> dict[str, list[dict[str, str]]]:
+def student_view_grades(payload: StudentGradePayload) -> dict:
     """
     VULNERABLE: ANY user can view ANY student's grades.
     No check that the requester is viewing their own grades.
     """
-    return {"grades": student_grades_placeholder(payload.student_username)}
+    return {"grades": get_student_grades_db(payload.student_username)}
 
 
 @app.post("/api/student/enroll")
-def student_enroll(payload: EnrollPayload) -> dict[str, str]:
-    return enroll_course_placeholder(payload.student_username, payload.course_code)
+def student_enroll(payload: EnrollPayload) -> dict:
+    return enroll_student_db(payload.student_username, payload.course_code)
 
 
 @app.post("/api/instructor/admit-student")
-def instructor_admit_student(payload: AdmitStudentPayload) -> dict[str, str]:
+def instructor_admit_student(payload: AdmitStudentPayload) -> dict:
     """
     VULNERABLE: NO ROLE CHECK!
     A student user can call this endpoint.
     Should be restricted to role="instructor" only.
     """
-    return admit_student_placeholder(payload.student_username, payload.course_code)
+    return admit_student_to_course_db(payload.student_username, payload.course_code)
 
 
 @app.post("/api/instructor/assign-grade")
-def instructor_assign_grade(payload: GradeStudentPayload) -> dict[str, str]:
+def instructor_assign_grade(payload: GradeStudentPayload) -> dict:
     """
     VULNERABLE: NO ROLE CHECK!
     A student user can call this and modify anyone's grades.
     """
-    return assign_grade_placeholder(payload.student_username, payload.course_code, payload.grade)
+    return assign_grade_to_student_db(payload.student_username, payload.course_code, payload.grade)
 
 
 @app.post("/api/instructor/create-assignment")
-def instructor_create_assignment(payload: AssignmentPayload) -> dict[str, str]:
+def instructor_create_assignment(payload: AssignmentPayload) -> dict:
     """
     VULNERABLE: NO ROLE CHECK!
     Should be restricted to role="instructor" only.
     """
-    return create_assignment_placeholder(payload.course_code, payload.title)
+    return create_assignment_db(payload.course_code, payload.title)
 
 
 @app.post("/api/admin/action")
-def admin_action(payload: CourseSearchPayload) -> dict[str, str]:
+def admin_action(payload: CourseSearchPayload) -> dict:
     """
     VULNERABLE: NO ROLE CHECK!
     Should be restricted to role="admin" only.
     """
-    return admin_do_anything_placeholder(payload.query)
+    return execute_admin_action_db(payload.query)

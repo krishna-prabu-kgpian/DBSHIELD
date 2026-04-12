@@ -18,6 +18,15 @@ from typing import Optional
 
 # Import authentication from original backend database
 from auth_database import authenticate_user
+from db_utils import (
+    search_courses_db,
+    get_student_grades_db,
+    enroll_student_db,
+    admit_student_to_course_db,
+    assign_grade_to_student_db,
+    create_assignment_db,
+    execute_admin_action_db
+)
 
 app = FastAPI(title="DBSHIELD Backend - SECURE VERSION")
 
@@ -121,51 +130,7 @@ def require_role(*allowed_roles: str):
     return decorator
 
 
-# ============== Placeholder Functions ==============
-
-def search_courses_placeholder(query: str) -> list[dict[str, str]]:
-    all_courses = [
-        {"code": "CS101", "title": "Intro to Programming"},
-        {"code": "CS205", "title": "Data Structures"},
-        {"code": "MA201", "title": "Discrete Mathematics"},
-        {"code": "HS110", "title": "Communication Skills"},
-    ]
-    term = query.strip().lower()
-    if not term:
-        return all_courses
-    return [
-        course
-        for course in all_courses
-        if term in course["code"].lower() or term in course["title"].lower()
-    ]
-
-
-def student_grades_placeholder(student_username: str) -> list[dict[str, str]]:
-    return [
-        {"course": "CS101", "grade": "A"},
-        {"course": "MA201", "grade": "B+"},
-        {"course": "CS205", "grade": "A-"},
-    ]
-
-
-def enroll_course_placeholder(student_username: str, course_code: str) -> dict[str, str]:
-    return {"message": f"Enrollment request accepted for {student_username} in {course_code}."}
-
-
-def admit_student_placeholder(student_username: str, course_code: str) -> dict[str, str]:
-    return {"message": f"Instructor admitted {student_username} to {course_code}."}
-
-
-def assign_grade_placeholder(student_username: str, course_code: str, grade: str) -> dict[str, str]:
-    return {"message": f"Grade {grade} assigned to {student_username} for {course_code}."}
-
-
-def create_assignment_placeholder(course_code: str, title: str) -> dict[str, str]:
-    return {"message": f"Assignment '{title}' created for {course_code}."}
-
-
-def admin_do_anything_placeholder(action: str) -> dict[str, str]:
-    return {"message": f"Admin action placeholder executed: {action}"}
+# ============== Database Functions (Real Data) ==============
 
 
 # ============== Endpoints ==============
@@ -206,8 +171,7 @@ def login(payload: LoginPayload) -> dict[str, str]:
 def student_search_courses(payload: CourseSearchPayload, request: Request) -> dict:
     """Search courses - accessible by any role, typically students."""
     username, role = extract_user_role(request)
-    # In production, could verify role is "student" here
-    return {"courses": search_courses_placeholder(payload.query)}
+    return {"courses": search_courses_db(payload.query)}
 
 
 @app.post("/api/student/view-grades")
@@ -235,7 +199,7 @@ def student_view_grades(payload: StudentGradePayload, request: Request) -> dict:
             detail="Access denied. Users can only view their own grades."
         )
     
-    return {"grades": student_grades_placeholder(payload.student_username)}
+    return {"grades": get_student_grades_db(payload.student_username)}
 
 
 @app.post("/api/student/enroll")
@@ -249,7 +213,7 @@ def student_enroll(payload: EnrollPayload, request: Request) -> dict:
             detail="Only students can enroll in courses"
         )
     
-    return enroll_course_placeholder(payload.student_username, payload.course_code)
+    return enroll_student_db(payload.student_username, payload.course_code)
 
 
 # ============== INSTRUCTOR ENDPOINTS (Secured) ==============
@@ -272,7 +236,7 @@ def instructor_admit_student(payload: AdmitStudentPayload, request: Request) -> 
             detail=f"Access denied. This endpoint requires role: instructor. You have role: {role}"
         )
     
-    return admit_student_placeholder(payload.student_username, payload.course_code)
+    return admit_student_to_course_db(payload.student_username, payload.course_code)
 
 
 @app.post("/api/instructor/assign-grade")
@@ -293,7 +257,7 @@ def instructor_assign_grade(payload: GradeStudentPayload, request: Request) -> d
             detail=f"Access denied. Only instructors can assign grades. You have role: {role}"
         )
     
-    return assign_grade_placeholder(
+    return assign_grade_to_student_db(
         payload.student_username,
         payload.course_code,
         payload.grade
@@ -318,7 +282,7 @@ def instructor_create_assignment(payload: AssignmentPayload, request: Request) -
             detail=f"Access denied. Only instructors can create assignments. You have role: {role}"
         )
     
-    return create_assignment_placeholder(payload.course_code, payload.title)
+    return create_assignment_db(payload.course_code, payload.title)
 
 
 # ============== ADMIN ENDPOINTS (Secured) ==============
@@ -341,4 +305,4 @@ def admin_action(payload: CourseSearchPayload, request: Request) -> dict:
             detail=f"Access denied. Admin privileges required. You have role: {role}"
         )
     
-    return admin_do_anything_placeholder(payload.query)
+    return execute_admin_action_db(payload.query)
