@@ -144,6 +144,101 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 			""",
 			student_batch,
 		)
+	
+	# Seed Courses
+	print("🎓 Seeding courses...")
+	courses_data = [
+		("CS101", "Introduction to Programming", "CSE", 1, 3, "Spring 2026"),
+		("CS205", "Data Structures", "CSE", 1, 3, "Spring 2026"),
+		("CS301", "Algorithms", "CSE", 1, 4, "Spring 2026"),
+		("MA201", "Discrete Mathematics", "MATH", 1, 3, "Spring 2026"),
+		("MA101", "Calculus I", "MATH", 1, 4, "Spring 2026"),
+		("PH101", "Physics I", "PHY", 1, 3, "Spring 2026"),
+		("CH101", "Chemistry", "CHE", 1, 3, "Spring 2026"),
+		("HS110", "Communication Skills", "HS", 1, 2, "Spring 2026"),
+		("CS401", "Database Systems", "CSE", 1, 4, "Spring 2026"),
+		("CS501", "Web Development", "CSE", 1, 3, "Spring 2026"),
+		("CS251", "Object-Oriented Programming", "CSE", 1, 3, "Spring 2026"),
+		("MA301", "Linear Algebra", "MATH", 1, 3, "Spring 2026"),
+	]
+	
+	cursor.executemany(
+		"""
+		INSERT INTO courses (course_code, course_title, department, instructor_id, credits, semester)
+		VALUES (?, ?, ?, ?, ?, ?)
+		""",
+		courses_data,
+	)
+	print(f"✅ Seeded {len(courses_data)} courses")
+	
+	# Seed Enrollments - Enroll students randomly
+	print("📝 Seeding enrollments...")
+	cursor.execute("SELECT id FROM courses")
+	course_ids = [row[0] for row in cursor.fetchall()]
+	
+	enrollment_rows = []
+	for student_id in range(2, min(total_users + 1, 1002)):  # Limit to 1000 students for performance
+		num_courses = random.randint(3, 6)
+		selected_courses = random.sample(course_ids, min(num_courses, len(course_ids)))
+		
+		for course_id in selected_courses:
+			# 70% chance of being admitted, 30% pending
+			status = random.choices(["admitted", "enrolled"], weights=[70, 30])[0]
+			grade = random.choices(
+				["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "F", None],
+				weights=[10, 8, 12, 15, 10, 9, 12, 6, 3, 2, 2, 12]
+			)[0]
+			
+			enrollment_rows.append((student_id, course_id, status, grade))
+	
+	cursor = connection.cursor()
+	for enrollment_batch in batched(enrollment_rows, batch_size):
+		cursor.executemany(
+			"""
+			INSERT INTO enrollments (student_id, course_id, status, grade)
+			VALUES (?, ?, ?, ?)
+			""",
+			enrollment_batch,
+		)
+	print(f"✅ Seeded {len(enrollment_rows)} enrollments")
+	
+	# Seed Assignments
+	print("📚 Seeding assignments...")
+	assignment_titles = [
+		"Problem Set 1",
+		"Problem Set 2", 
+		"Midterm Project",
+		"Final Project",
+		"Quiz 1",
+		"Quiz 2",
+		"Lab Assignment 1",
+		"Lab Assignment 2",
+		"Case Study",
+		"Research Paper",
+	]
+	
+	assignment_rows = []
+	for course_id in course_ids:
+		num_assignments = random.randint(3, 8)
+		selected_titles = random.sample(assignment_titles, min(num_assignments, len(assignment_titles)))
+		
+		for title in selected_titles:
+			description = f"Complete {title} for this course"
+			assignment_rows.append((course_id, title, description))
+	
+	cursor = connection.cursor()
+	for assignment_batch in batched(assignment_rows, batch_size):
+		cursor.executemany(
+			"""
+			INSERT INTO assignments (course_id, title, description)
+			VALUES (?, ?, ?)
+			""",
+			assignment_batch,
+		)
+	print(f"✅ Seeded {len(assignment_rows)} assignments")
+
+
+
 
 
 def main() -> None:
@@ -161,8 +256,12 @@ def main() -> None:
 			connection.commit()
 
 		print(
-			f"Database reset complete at {db_file}. Applied {sql_file_path} and seeded {args.rows} users "
-			f"(1 admin, {args.rows - 1} students)."
+			f"Database reset complete at {db_file}. Applied {sql_file_path}.\n"
+			f"✅ Seeded data:\n"
+			f"  - {args.rows} users (1 admin, {args.rows - 1} students)\n"
+			f"  - 12 courses\n"
+			f"  - Enrollments for up to 1000 students (randomly selected courses)\n"
+			f"  - 40+ assignments across courses"
 		)
 	except Exception as exc:
 		print(f"Failed to reset/seed database: {exc}", file=sys.stderr)
