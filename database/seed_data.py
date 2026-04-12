@@ -101,6 +101,22 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 		admin_user,
 	)
 
+	# Add instructor users for testing
+	instructor_users = [
+		("instructor1", "instructor1@example.com", "inst123", "instructor", "Instructor One", "8111000001"),
+		("instructor2", "instructor2@example.com", "inst456", "instructor", "Instructor Two", "8111000002"),
+	]
+	
+	cursor = connection.cursor()
+	for user in instructor_users:
+		cursor.execute(
+			"""
+			INSERT INTO users (username, email, password, role, name, phone)
+			VALUES (?, ?, ?, ?, ?, ?)
+			""",
+			user,
+		)
+
 	student_users = []
 	for index in range(1, student_count + 1):
 		student_users.append(

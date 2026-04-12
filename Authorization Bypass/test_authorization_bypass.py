@@ -27,7 +27,7 @@ SECURE_URL = "http://localhost:8002"
 # Test user credentials (from seeded data)
 TEST_USERS = {
     "student": {"username": "student1", "password": "pass1", "role": "student"},
-    "instructor": {"username": "student2", "password": "pass2", "role": "instructor"},  # For demo, using student as instructor
+    "instructor": {"username": "instructor1", "password": "inst123", "role": "instructor"},
     "admin": {"username": "admin", "password": "admin123", "role": "admin"},
 }
 
@@ -81,18 +81,22 @@ def make_request(
     endpoint: str, 
     method: str = "POST",
     payload: Dict[str, Any] = None,
-    user_role: str = None
+    token: str = None,
 ) -> tuple[int, Any, str, Dict]:
-    """Make HTTP request with proper headers."""
+    """
+    Make HTTP request with Bearer token authentication.
+    
+    All requests require Bearer token (both vulnerable and secure versions).
+    The difference:
+    - Vulnerable: Accepts any token without checking role
+    - Secure: Validates token AND checks role for each endpoint
+    """
     url = f"{base_url}{endpoint}"
     headers = {"Content-Type": "application/json"}
     
-    # Add authentication headers for secured version
-    if user_role:
-        user_info = TEST_USERS.get(user_role)
-        if user_info:
-            headers["X-User"] = user_info["username"]
-            headers["X-Role"] = user_role
+    # Secure version: Use Bearer token
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     
     try:
         if method == "POST":
@@ -115,25 +119,40 @@ def make_request(
 def test_vulnerable_version():
     """
     Test the vulnerable version - demonstrates authorization bypass.
+    
+    ✅ AUTHENTICATION: Must login to get valid Bearer token
+    ❌ AUTHORIZATION: No role checks on endpoints
+    
+    Result: Authenticated but can bypass authorization!
     """
     print(f"\n{Fore.YELLOW}{'='*60}")
-    print(f"TESTING VULNERABLE VERSION - should show bypass attacks")
+    print(f"TESTING VULNERABLE VERSION - has NO authorization checks")
     print(f"{'='*60}{Style.RESET_ALL}\n")
     
     results = []
     
-    # First, login as student
-    print(f"{Fore.CYAN}1. Logging in as STUDENT user...{Style.RESET_ALL}")
-    status, resp, err, req_info = make_request(VULNERABLE_URL, "/api/login", payload=TEST_USERS["student"])
+    # ✅ STEP 1: Login to get valid token
+    print(f"{Fore.CYAN}1. Logging in as STUDENT...{Style.RESET_ALL}")
+    status, resp, err, req_info = make_request(
+        VULNERABLE_URL,
+        "/api/login",
+        method="POST",
+        payload=TEST_USERS["student"]
+    )
     
     if status != 200:
         print(f"{Fore.RED}   Failed to login: {err}{Style.RESET_ALL}")
         return results
     
-    print(f"{Fore.GREEN}   Login successful ✓{Style.RESET_ALL}")
+    token = resp.get("token") if resp else None
+    if not token:
+        print(f"{Fore.RED}   No token in response: {resp}{Style.RESET_ALL}")
+        return results
     
-    # Test 1: Student viewing other student's grades (should FAIL in secure, PASS in vulnerable)
-    print(f"\n{Fore.CYAN}2. ATTACK: Student viewing OTHER student's grades...{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}   ✓ Got token (role=student){Style.RESET_ALL}\n")
+    
+    # Test 1: Student viewing other student's grades (should PASS - vulnerable!)
+    print(f"{Fore.CYAN}2. ATTACK: Student viewing OTHER student's grades...{Style.RESET_ALL}")
     test = TestResult(
         "Student access to other_student's grades",
         should_pass=True  # Should PASS in vulnerable (bad!), FAIL in secure (good)
@@ -142,13 +161,13 @@ def test_vulnerable_version():
         VULNERABLE_URL,
         "/api/student/view-grades",
         payload={"student_username": "other_student"},
-        user_role="student"
+        token=token
     )
     test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
-    # Test 2: Student calling instructor endpoint (should FAIL in secure, PASS in vulnerable)
+    # Test 2: Student calling instructor endpoint (should PASS - vulnerable!)
     print(f"\n{Fore.CYAN}3. ATTACK: Student calling INSTRUCTOR endpoint (admit-student)...{Style.RESET_ALL}")
     test = TestResult(
         "Student admits another student to course",
@@ -158,13 +177,13 @@ def test_vulnerable_version():
         VULNERABLE_URL,
         "/api/instructor/admit-student",
         payload={"student_username": "target_student", "course_code": "CS101"},
-        user_role="student"
+        token=token
     )
     test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
-    # Test 3: Student assigning grades (should FAIL in secure, PASS in vulnerable)
+    # Test 3: Student assigning grades (should PASS - vulnerable!)
     print(f"\n{Fore.CYAN}4. ATTACK: Student assigning grades (instructor-only)...{Style.RESET_ALL}")
     test = TestResult(
         "Student assigns grades to another student",
@@ -174,13 +193,13 @@ def test_vulnerable_version():
         VULNERABLE_URL,
         "/api/instructor/assign-grade",
         payload={"student_username": "target_student", "course_code": "CS101", "grade": "F"},
-        user_role="student"
+        token=token
     )
     test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
-    # Test 4: Student calling admin endpoint (should FAIL in secure, PASS in vulnerable)
+    # Test 4: Student calling admin endpoint (should PASS - vulnerable!)
     print(f"\n{Fore.CYAN}5. ATTACK: Student calling ADMIN endpoint...{Style.RESET_ALL}")
     test = TestResult(
         "Student executes admin action",
@@ -190,7 +209,7 @@ def test_vulnerable_version():
         VULNERABLE_URL,
         "/api/admin/action",
         payload={"query": "DROP TABLE users;"},
-        user_role="student"
+        token=token
     )
     test.set_result(status, resp, err, req_info)
     results.append(test)
@@ -202,6 +221,7 @@ def test_vulnerable_version():
 def test_secure_version():
     """
     Test the secure version - demonstrates authorization enforcement.
+    Uses Bearer token authentication (requires valid login).
     """
     print(f"\n{Fore.YELLOW}{'='*60}")
     print(f"TESTING SECURE VERSION - should block all bypass attacks")
@@ -209,8 +229,29 @@ def test_secure_version():
     
     results = []
     
+    # ✅ STEP 1: Login to get valid token
+    print(f"{Fore.CYAN}1. Logging in to get valid Bearer token...{Style.RESET_ALL}")
+    status, resp, err, req_info = make_request(
+        SECURE_URL,
+        "/api/login",
+        method="POST",
+        payload=TEST_USERS["student"]
+    )
+    
+    if status != 200:
+        print(f"{Fore.RED}   Failed to login: {err}{Style.RESET_ALL}")
+        return results
+    
+    token = resp.get("token") if resp else None
+    if not token:
+        print(f"{Fore.RED}   No token in response: {resp}{Style.RESET_ALL}")
+        return results
+    
+    print(f"{Fore.GREEN}   ✓ Login successful, received token{Style.RESET_ALL}")
+    print(f"     Token: {token[:20]}...{Style.RESET_ALL}\n")
+    
     # Test 1: Student accessing other student's grades (should FAIL - blocked)
-    print(f"{Fore.CYAN}1. Student accessing other_student's grades...{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}2. Student accessing other_student's grades...{Style.RESET_ALL}")
     test = TestResult(
         "Student blocked from accessing other_student's grades",
         should_pass=False  # Should FAIL (good!)
@@ -219,14 +260,14 @@ def test_secure_version():
         SECURE_URL,
         "/api/student/view-grades",
         payload={"student_username": "other_student"},
-        user_role="student"
+        token=token
     )
     test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
     # Test 2: Student calling instructor endpoint (should FAIL - blocked)
-    print(f"\n{Fore.CYAN}2. Student attempting to call instructor endpoint...{Style.RESET_ALL}")
+    print(f"\n{Fore.CYAN}3. Student attempting to call instructor endpoint...{Style.RESET_ALL}")
     test = TestResult(
         "Student denied from instructor endpoint (admit-student)",
         should_pass=False  # Should FAIL (good!)
@@ -235,14 +276,14 @@ def test_secure_version():
         SECURE_URL,
         "/api/instructor/admit-student",
         payload={"student_username": "target_student", "course_code": "CS101"},
-        user_role="student"
+        token=token
     )
     test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
     # Test 3: Student assigning grades (should FAIL - blocked)
-    print(f"\n{Fore.CYAN}3. Student attempting to assign grades...{Style.RESET_ALL}")
+    print(f"\n{Fore.CYAN}4. Student attempting to assign grades...{Style.RESET_ALL}")
     test = TestResult(
         "Student denied from assign-grade endpoint",
         should_pass=False  # Should FAIL (good!)
@@ -251,14 +292,14 @@ def test_secure_version():
         SECURE_URL,
         "/api/instructor/assign-grade",
         payload={"student_username": "target_student", "course_code": "CS101", "grade": "F"},
-        user_role="student"
+        token=token
     )
     test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
     # Test 4: Student calling admin endpoint (should FAIL - blocked)
-    print(f"\n{Fore.CYAN}4. Student attempting admin action...{Style.RESET_ALL}")
+    print(f"\n{Fore.CYAN}5. Student attempting admin action...{Style.RESET_ALL}")
     test = TestResult(
         "Student denied from admin endpoint",
         should_pass=False  # Should FAIL (good!)
@@ -267,43 +308,71 @@ def test_secure_version():
         SECURE_URL,
         "/api/admin/action",
         payload={"query": "DROP TABLE users;"},
-        user_role="student"
+        token=token
     )
     test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
-    # Test 5: Instructor can call instructor endpoints (should PASS - allowed)
-    print(f"\n{Fore.CYAN}5. Instructor calling instructor endpoint...{Style.RESET_ALL}")
-    test = TestResult(
-        "Instructor allowed to admit student",
-        should_pass=True  # Should PASS (good!)
-    )
+    print(f"\n{Fore.CYAN}6. Testing with instructor token...{Style.RESET_ALL}")
+    # Login as instructor to test authorization
     status, resp, err, req_info = make_request(
         SECURE_URL,
-        "/api/instructor/admit-student",
-        payload={"student_username": "target_student", "course_code": "CS101"},
-        user_role="instructor"
+        "/api/login",
+        method="POST",
+        payload=TEST_USERS["instructor"]
     )
-    test.set_result(status, resp, err, req_info)
-    results.append(test)
-    test.print_result()
     
-    # Test 6: Admin can call admin endpoints (should PASS - allowed)
-    print(f"\n{Fore.CYAN}6. Admin calling admin endpoint...{Style.RESET_ALL}")
-    test = TestResult(
-        "Admin allowed to execute admin action",
-        should_pass=True  # Should PASS (good!)
-    )
+    if status == 200:
+        instructor_token = resp.get("token")
+        if instructor_token:
+            print(f"   ✓ Instructor logged in\n")
+            
+            # Test 5: Instructor can call instructor endpoints (should PASS - allowed)
+            print(f"{Fore.CYAN}7. Instructor calling instructor endpoint...{Style.RESET_ALL}")
+            test = TestResult(
+                "Instructor allowed to admit student",
+                should_pass=True  # Should PASS (good!)
+            )
+            status, resp, err, req_info = make_request(
+                SECURE_URL,
+                "/api/instructor/admit-student",
+                payload={"student_username": "target_student", "course_code": "CS101"},
+                token=instructor_token
+            )
+            test.set_result(status, resp, err, req_info)
+            results.append(test)
+            test.print_result()
+    
+    print(f"\n{Fore.CYAN}8. Testing with admin token...{Style.RESET_ALL}")
+    # Login as admin to test authorization
     status, resp, err, req_info = make_request(
         SECURE_URL,
-        "/api/admin/action",
-        payload={"query": "SELECT * FROM users;"},
-        user_role="admin"
+        "/api/login",
+        method="POST",
+        payload=TEST_USERS["admin"]
     )
-    test.set_result(status, resp, err, req_info)
-    results.append(test)
-    test.print_result()
+    
+    if status == 200:
+        admin_token = resp.get("token")
+        if admin_token:
+            print(f"   ✓ Admin logged in\n")
+            
+            # Test 6: Admin can call admin endpoints (should PASS - allowed)
+            print(f"{Fore.CYAN}9. Admin calling admin endpoint...{Style.RESET_ALL}")
+            test = TestResult(
+                "Admin allowed to execute admin action",
+                should_pass=True  # Should PASS (good!)
+            )
+            status, resp, err, req_info = make_request(
+                SECURE_URL,
+                "/api/admin/action",
+                payload={"query": "SELECT * FROM users;"},
+                token=admin_token
+            )
+            test.set_result(status, resp, err, req_info)
+            results.append(test)
+            test.print_result()
     
     return results
 

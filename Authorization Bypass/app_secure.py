@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 # Import authentication from original backend database
-from auth_database import authenticate_user
+from auth_database import authenticate_user, verify_user_role, create_session_token, verify_session_token
 from db_utils import (
     search_courses_db,
     get_student_grades_db,
@@ -79,21 +79,38 @@ class AssignmentPayload(BaseModel):
 
 def extract_user_role(request: Request) -> Optional[tuple[str, str]]:
     """
-    Extract user information from request headers.
-    In production, this would validate JWT tokens.
+    Extract user information from Bearer token in Authorization header.
     
-    For demo: X-User and X-Role headers simulate JWT claims.
+    ✅ SECURE: User must have logged in with username/password to get token.
+    The token proves their identity - prevents header spoofing.
+    
+    Token is obtained from POST /api/login response.
     """
-    username = request.headers.get("X-User")
-    role = request.headers.get("X-Role")
+    auth_header = request.headers.get("Authorization", "")
+    
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401, 
+            detail="Missing or invalid Authorization header. Format: Bearer <token>"
+        )
+    
+    token = auth_header.replace("Bearer ", "").strip()
+    
+    # Verify token is valid and get user info
+    user_data = verify_session_token(token)
+    if not user_data:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token. Please login again."
+        )
+    
+    username = user_data.get("username")
+    role = user_data.get("role")
     
     if not username or not role:
-        raise HTTPException(status_code=401, detail="Missing authentication headers (X-User, X-Role)")
+        raise HTTPException(status_code=401, detail="Malformed token")
     
-    if role.lower() not in {"student", "instructor", "admin"}:
-        raise HTTPException(status_code=400, detail="Invalid role")
-    
-    return username, role.lower()
+    return username, role
 
 
 def require_role(*allowed_roles: str):
@@ -142,7 +159,13 @@ def health_check() -> dict[str, str]:
 
 @app.post("/api/login")
 def login(payload: LoginPayload) -> dict[str, str]:
-    """Authenticate user against the real database."""
+    """
+    ✅ Authenticate user with username/password.
+    Returns a secure token that proves user identity.
+    
+    This prevents header spoofing - tokens are generated server-side
+    and tied to the authenticated user.
+    """
     username = payload.username.strip()
     password = payload.password
 
@@ -153,16 +176,26 @@ def login(payload: LoginPayload) -> dict[str, str]:
     result = authenticate_user(username, password)
     
     if not result:
-        return {"message": "Invalid credentials."}
+        raise HTTPException(status_code=401, detail="Invalid credentials.")
 
     role = str(result.get("role", "")).lower()
     user = str(result.get("username", username))
     name = str(result.get("name", ""))
 
     if role not in {"student", "instructor", "admin"}:
-        return {"message": "Login successful.", "username": user, "role": "student", "name": name}
+        role = "student"
 
-    return {"message": "Login successful.", "username": user, "role": role, "name": name}
+    # ✅ SECURE: Create a session token tied to this authenticated user
+    token = create_session_token(user, role)
+
+    return {
+        "message": "Login successful.",
+        "token": token,
+        "username": user,
+        "role": role,
+        "name": name,
+        "instructions": "Use this token: Authorization: Bearer " + token
+    }
 
 
 # ============== STUDENT ENDPOINTS (Secured) ==============
