@@ -1,5 +1,68 @@
 # DBSHIELD Project Report
 
+## Quick Start
+
+### 1. Load the backend
+
+Install the backend dependencies:
+
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+Start the FastAPI server:
+
+```bash
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+The backend will run at `http://localhost:8000`.
+
+### 2. Open the frontend
+
+Install the frontend dependencies:
+
+```bash
+cd frontend/frontend
+npm install
+```
+
+Start the React frontend:
+
+```bash
+npm start
+```
+
+Open `http://localhost:3000` in your browser.
+
+### 3. Seed the SQLite database
+
+From the project root, run:
+
+```bash
+python3 database/seed_data.py --rows 20000
+```
+
+This creates or resets the SQLite database file at `database/dbshield.sqlite3`.
+
+To see the contents of the database (Run these in the root directory):
+
+```bash
+sqlite3 database/dbshield.sqlite3
+
+.tables
+.schema users
+select * from users limit 10;
+select * from students limit 10;
+```
+
+Default sample logins after seeding:
+
+- `admin / admin123`
+- `student1 / pass1`
+- `student2 / pass2`
+
 ## 1. Group Details
 
 **Team GBDB**
