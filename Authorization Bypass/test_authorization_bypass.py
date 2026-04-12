@@ -24,11 +24,11 @@ init(autoreset=True)
 VULNERABLE_URL = "http://localhost:8001"
 SECURE_URL = "http://localhost:8002"
 
-# Test user credentials
+# Test user credentials (from seeded data)
 TEST_USERS = {
-    "student": {"username": "student_user", "password": "password", "role": "student"},
-    "instructor": {"username": "instructor_user", "password": "password", "role": "instructor"},
-    "admin": {"username": "admin_user", "password": "password", "role": "admin"},
+    "student": {"username": "student1", "password": "pass1", "role": "student"},
+    "instructor": {"username": "student2", "password": "pass2", "role": "instructor"},  # For demo, using student as instructor
+    "admin": {"username": "admin", "password": "admin123", "role": "admin"},
 }
 
 
@@ -42,11 +42,13 @@ class TestResult:
         self.status_code = None
         self.response = None
         self.error = None
+        self.request_info = None
     
-    def set_result(self, status_code: int, response: Any, error: str = None):
+    def set_result(self, status_code: int, response: Any, error: str = None, request_info: Dict = None):
         self.status_code = status_code
         self.response = response
         self.error = error
+        self.request_info = request_info or {}
         # Determine if test passed/failed
         if self.should_pass:
             self.passed = status_code == 200
@@ -63,8 +65,15 @@ class TestResult:
         print(f"  {self.get_symbol()} {self.name}: {status}")
         if self.status_code:
             print(f"     HTTP {self.status_code}")
+        if self.request_info:
+            print(f"     {self.request_info.get('method', 'POST')} {self.request_info.get('url', '')}")
         if self.response:
-            print(f"     Response: {json.dumps(self.response, indent=2)[:200]}...")
+            # Show truncated response
+            resp_str = json.dumps(self.response, indent=2)
+            if len(resp_str) > 150:
+                print(f"     Response: {resp_str[:150]}...")
+            else:
+                print(f"     Response: {resp_str}")
 
 
 def make_request(
@@ -73,7 +82,7 @@ def make_request(
     method: str = "POST",
     payload: Dict[str, Any] = None,
     user_role: str = None
-) -> tuple[int, Any, str]:
+) -> tuple[int, Any, str, Dict]:
     """Make HTTP request with proper headers."""
     url = f"{base_url}{endpoint}"
     headers = {"Content-Type": "application/json"}
@@ -91,13 +100,16 @@ def make_request(
         else:
             response = requests.get(url, headers=headers, timeout=5)
         
-        return response.status_code, response.json(), None
+        try:
+            return response.status_code, response.json(), None, {"headers": dict(response.headers), "url": url, "method": method}
+        except:
+            return response.status_code, {"message": response.text}, None, {"headers": dict(response.headers), "url": url, "method": method}
     except requests.exceptions.ConnectionError as e:
-        return 0, None, f"Connection error: {str(e)}"
+        return 0, None, f"Connection error: Server not running on {base_url}", {"url": url, "method": method}
     except requests.exceptions.Timeout:
-        return 0, None, "Request timeout"
+        return 0, None, "Request timeout", {"url": url, "method": method}
     except Exception as e:
-        return 0, None, str(e)
+        return 0, None, str(e), {"url": url, "method": method}
 
 
 def test_vulnerable_version():
@@ -112,7 +124,7 @@ def test_vulnerable_version():
     
     # First, login as student
     print(f"{Fore.CYAN}1. Logging in as STUDENT user...{Style.RESET_ALL}")
-    status, resp, err = make_request(VULNERABLE_URL, "/api/login", payload=TEST_USERS["student"])
+    status, resp, err, req_info = make_request(VULNERABLE_URL, "/api/login", payload=TEST_USERS["student"])
     
     if status != 200:
         print(f"{Fore.RED}   Failed to login: {err}{Style.RESET_ALL}")
@@ -126,13 +138,13 @@ def test_vulnerable_version():
         "Student access to other_student's grades",
         should_pass=True  # Should PASS in vulnerable (bad!), FAIL in secure (good)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         VULNERABLE_URL,
         "/api/student/view-grades",
         payload={"student_username": "other_student"},
         user_role="student"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -142,13 +154,13 @@ def test_vulnerable_version():
         "Student admits another student to course",
         should_pass=True  # Should PASS in vulnerable (bad!), FAIL in secure (good)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         VULNERABLE_URL,
         "/api/instructor/admit-student",
         payload={"student_username": "target_student", "course_code": "CS101"},
         user_role="student"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -158,13 +170,13 @@ def test_vulnerable_version():
         "Student assigns grades to another student",
         should_pass=True  # Should PASS in vulnerable (bad!), FAIL in secure (good)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         VULNERABLE_URL,
         "/api/instructor/assign-grade",
         payload={"student_username": "target_student", "course_code": "CS101", "grade": "F"},
         user_role="student"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -174,13 +186,13 @@ def test_vulnerable_version():
         "Student executes admin action",
         should_pass=True  # Should PASS in vulnerable (bad!), FAIL in secure (good)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         VULNERABLE_URL,
         "/api/admin/action",
         payload={"query": "DROP TABLE users;"},
         user_role="student"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -203,13 +215,13 @@ def test_secure_version():
         "Student blocked from accessing other_student's grades",
         should_pass=False  # Should FAIL (good!)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         SECURE_URL,
         "/api/student/view-grades",
         payload={"student_username": "other_student"},
         user_role="student"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -219,13 +231,13 @@ def test_secure_version():
         "Student denied from instructor endpoint (admit-student)",
         should_pass=False  # Should FAIL (good!)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         SECURE_URL,
         "/api/instructor/admit-student",
         payload={"student_username": "target_student", "course_code": "CS101"},
         user_role="student"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -235,13 +247,13 @@ def test_secure_version():
         "Student denied from assign-grade endpoint",
         should_pass=False  # Should FAIL (good!)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         SECURE_URL,
         "/api/instructor/assign-grade",
         payload={"student_username": "target_student", "course_code": "CS101", "grade": "F"},
         user_role="student"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -251,13 +263,13 @@ def test_secure_version():
         "Student denied from admin endpoint",
         should_pass=False  # Should FAIL (good!)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         SECURE_URL,
         "/api/admin/action",
         payload={"query": "DROP TABLE users;"},
         user_role="student"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -267,13 +279,13 @@ def test_secure_version():
         "Instructor allowed to admit student",
         should_pass=True  # Should PASS (good!)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         SECURE_URL,
         "/api/instructor/admit-student",
         payload={"student_username": "target_student", "course_code": "CS101"},
         user_role="instructor"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
@@ -283,13 +295,13 @@ def test_secure_version():
         "Admin allowed to execute admin action",
         should_pass=True  # Should PASS (good!)
     )
-    status, resp, err = make_request(
+    status, resp, err, req_info = make_request(
         SECURE_URL,
         "/api/admin/action",
         payload={"query": "SELECT * FROM users;"},
         user_role="admin"
     )
-    test.set_result(status, resp, err)
+    test.set_result(status, resp, err, req_info)
     results.append(test)
     test.print_result()
     
