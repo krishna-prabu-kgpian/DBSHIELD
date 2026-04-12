@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from database import connect_to_db, handle_student_login
+from sql_injection_prevention.secure_auth import handle_student_login_secure
 
 # Import DDoS protection modules
 from ddos_prevention.rate_limiter import IPRateLimiter
@@ -13,6 +14,9 @@ app = FastAPI(title="DBSHIELD Backend")
 # Set this to True to enable the DDOS protection layer
 # Set this to False to simulate an unprotected backend
 ENABLE_DDOS_PROTECTION = False 
+# Set this to True to route login through the secure module.
+# Set this to False to keep the intentionally vulnerable SQLi demo path.
+ENABLE_SQLI_PROTECTION = True
 # =====================================================================
 
 ip_limiter = IPRateLimiter()
@@ -140,7 +144,8 @@ def login(payload: LoginPayload) -> dict[str, str]:
     if not username or not password:
         raise HTTPException(status_code=400, detail="Username and password are required.")
 
-    result = handle_student_login(username, password)
+    login_handler = handle_student_login_secure if ENABLE_SQLI_PROTECTION else handle_student_login
+    result = login_handler(username, password)
     if not result:
         return {"message": "Invalid credentials."}
 
