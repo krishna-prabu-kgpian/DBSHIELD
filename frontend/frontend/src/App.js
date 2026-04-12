@@ -68,7 +68,7 @@ function App() {
   if (role) {
     if (role === 'student') {
       return (
-        <main className="erp-page">
+        <main className="erp-page erp-page-dashboard">
           <StudentPage
             displayName={loggedInName}
             username={loggedInUsername}
@@ -80,7 +80,7 @@ function App() {
 
     if (role === 'instructor') {
       return (
-        <main className="erp-page">
+        <main className="erp-page erp-page-dashboard">
           <InstructorPage
             displayName={loggedInName}
             username={loggedInUsername}
@@ -92,7 +92,7 @@ function App() {
 
     if (role === 'admin') {
       return (
-        <main className="erp-page">
+        <main className="erp-page erp-page-dashboard">
           <AdminPage
             displayName={loggedInName}
             username={loggedInUsername}
@@ -103,7 +103,7 @@ function App() {
     }
 
     return (
-      <main className="erp-page">
+      <main className="erp-page erp-page-dashboard">
         <section className="login-card">
           <h1>Unsupported Role</h1>
           <p className="subtitle">Role: {role}</p>
@@ -114,7 +114,7 @@ function App() {
   }
 
   return (
-    <main className="erp-page">
+    <main className="erp-page erp-page-login">
       <section className="login-card">
         <h1>Student ERP Login</h1>
         <p className="subtitle">Sign in to continue to your dashboard.</p>
