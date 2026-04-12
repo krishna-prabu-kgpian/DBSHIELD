@@ -2,18 +2,18 @@
 
 ## Quick Start
 
-### 1. Load the backend
-
-Install the backend dependencies:
+### Install Dependencies
 
 ```bash
-cd backend
 pip install -r requirements.txt
 ```
+
+### 1. Load the backend
 
 Start the FastAPI server:
 
 ```bash
+cd backend
 uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -21,7 +21,7 @@ The backend will run at `http://localhost:8000`.
 
 ### 2. Open the frontend
 
-Install the frontend dependencies:
+Install the frontend dependencies: (from the project root)
 
 ```bash
 cd frontend/frontend
