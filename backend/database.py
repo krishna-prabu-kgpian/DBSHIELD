@@ -31,14 +31,19 @@ def initialize_database() -> None:
         conn.commit()
 
 def connect_to_db():
-    initialize_database()
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
 
 def handle_student_login(username: str, password: str):
-    sql_query = f"SELECT * from Users WHERE username='{username}' AND password='{password}'"
+    import time
+    
+    # Simulate realistic database query parsing overhead
+    # During a DDoS, a database parsing complex queries (or under high connection load) slows down significantly.
+    time.sleep(0.05)
+    
+    sql_query = f"SELECT * from users WHERE username='{username}' AND password='{password}'"
     conn = connect_to_db()
     try:
         cursor = conn.cursor()
