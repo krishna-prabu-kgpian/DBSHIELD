@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from database import handle_student_login
@@ -24,7 +26,7 @@ from erp_placeholders import (
 )
 
 # Import DDoS protection modules
-from ddos_prevention.rate_limiter import IPRateLimiter
+from ddos_prevention.rate_limiter import IPRateLimiter, BoundedQueryHistory
 
 app = FastAPI(title="DBSHIELD Backend")
 
@@ -32,21 +34,32 @@ app = FastAPI(title="DBSHIELD Backend")
 # DEMONSTRATION TOGGLE
 # Set this to True to enable the DDOS protection layer
 # Set this to False to simulate an unprotected backend
-ENABLE_DDOS_PROTECTION = False 
+ENABLE_PROTECTION = True 
 # =====================================================================
 
 ip_limiter = IPRateLimiter()
+query_history = BoundedQueryHistory()
 
 @app.middleware("http")
 async def ddos_protection_middleware(request, call_next):
-    if ENABLE_DDOS_PROTECTION:
+    if ENABLE_PROTECTION:
         client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+        
+        # In a real scenario, attackers might spoof IPs, so IP limiting alone isn't enough
         is_allowed, block_reason = await ip_limiter.check_ip(client_ip)
         
         if not is_allowed:
             from fastapi.responses import JSONResponse
-            print(f"[BLOCKED] IP {client_ip}: {block_reason}")
             return JSONResponse(status_code=429, content={"detail": block_reason})
+            
+        # Add a secondary layer: Rate limit based on the endpoint to combat distributed attacks
+        endpoint_hash = f"{request.method}:{request.url.path}"
+        from ddos_prevention.config import RATE_LIMIT_THRESHOLD, RATE_LIMIT_WINDOW
+        is_limited = await query_history.record_and_check(endpoint_hash, RATE_LIMIT_THRESHOLD, RATE_LIMIT_WINDOW)
+        
+        if is_limited:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=429, content={"detail": "Endpoint rate limit exceeded"})
             
     response = await call_next(request)
     return response

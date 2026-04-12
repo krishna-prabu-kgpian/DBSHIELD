@@ -11,8 +11,8 @@ import sys
 
 # --- Configuration ---
 TARGET_URL = "http://127.0.0.1:8000/api/login"
-BATCH_SIZE = 100  # Number of requests per concurrent batch
-WORKERS = 10      # Number of concurrent workers running batches
+BATCH_SIZE = 500  # Extreme number of requests per concurrent batch
+WORKERS = 50      # Massive number of concurrent workers running batches
 
 def generate_spoofed_ip():
     """Generates a fresh private IP so the rate limiter sees a new IP."""
