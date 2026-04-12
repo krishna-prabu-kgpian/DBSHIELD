@@ -17,32 +17,34 @@ create table if not exists students (
 
 create table if not exists courses (
     id integer primary key autoincrement,
-    course_code text unique not null,
-    course_title text not null,
-    department text,
+    course_code varchar(50) unique not null,
+    course_title varchar(255) not null,
+    department varchar(100),
     instructor_id integer references users(id) on delete set null,
     credits integer default 3,
-    semester text,
-    created_date datetime default current_timestamp
+    semester varchar(20),
+    created_date timestamp default CURRENT_TIMESTAMP
 );
 
 create table if not exists enrollments (
     id integer primary key autoincrement,
+    id integer primary key autoincrement,
     student_id integer references users(id) on delete cascade,
     course_id integer references courses(id) on delete cascade,
-    enrollment_date datetime default current_timestamp,
-    status text default 'enrolled',
-    admitted_date datetime,
-    grade text,
-    graded_date datetime,
+    enrollment_date timestamp default CURRENT_TIMESTAMP,
+    status varchar(50) default 'enrolled',
+    admitted_date timestamp,
+    grade varchar(2),
+    graded_date timestamp,
     unique(student_id, course_id)
 );
 
 create table if not exists assignments (
     id integer primary key autoincrement,
+    id integer primary key autoincrement,
     course_id integer references courses(id) on delete cascade,
     title text not null,
     description text,
-    due_date datetime,
-    created_date datetime default current_timestamp
+    due_date timestamp,
+    created_date timestamp default CURRENT_TIMESTAMP
 );

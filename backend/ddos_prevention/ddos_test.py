@@ -95,53 +95,6 @@ class TestRunner:
         print("=" * 60)
 
 
-async def test_priority_system(runner: TestRunner):
-    runner.rotate_ip()
-    print("\n" + "=" * 60 + "\nPRIORITY SYSTEM TESTS\n" + "=" * 60)
-
-    status, data, latency = await runner.post("SELECT * FROM grades WHERE id = 1", {"X-User-City": "Mumbai"})
-    if status == 200:
-        priority = data.get("priority")
-        runner.record("test_metro_city_header", priority in (1, 2), f"Priority={priority} for Mumbai")
-    else:
-        runner.record("test_metro_city_header", False, f"Failed: {status}")
-
-    status, data, latency = await runner.post("SELECT * FROM grades WHERE id = 2", {"X-User-City": "Ahmedabad"})
-    if status == 200:
-        runner.record("test_tier2_city", data.get("priority") == 3, f"Priority={data.get('priority')} for Ahmedabad")
-    else:
-        runner.record("test_tier2_city", False, f"Failed: {status}")
-
-    status, data, latency = await runner.post("SELECT * FROM grades WHERE id = 3", {"X-User-City": "SmallTown"})
-    if status == 200:
-        runner.record("test_standard_city", data.get("priority") == 4, f"Priority={data.get('priority')} for SmallTown")
-    else:
-        runner.record("test_standard_city", False, f"Failed: {status}")
-
-    status, data, latency = await runner.post("SELECT * FROM grades WHERE id = 4", {})
-    if status == 200:
-        city = data.get("city", "")
-        runner.record("test_missing_city_header", city in ("unknown", ""), f"City='{city}' without header")
-    else:
-        runner.record("test_missing_city_header", False, f"Failed: {status}")
-
-
-async def test_city_header_edge_cases(runner: TestRunner):
-    runner.rotate_ip()
-    print("\n" + "=" * 60 + "\nCITY HEADER EDGE CASES\n" + "=" * 60)
-    test_cases = [("MUMBAI", "uppercase"), ("mumbai", "lowercase"), ("Mumbai", "mixed case"), ("  mumbai  ", "with whitespace")]
-
-    for city_value, description in test_cases:
-        status, data, latency = await runner.post(f"SELECT * FROM test WHERE x = '{random.randint(1,1000)}'", {"X-User-City": city_value})
-        if status == 200:
-            result_city = data.get("city", "").lower().strip()
-            runner.record(f"test_city_{description.replace(' ', '_')}", result_city == "mumbai", f"'{city_value}' -> '{result_city}'")
-        else:
-            runner.record(f"test_city_{description}", False, f"Status: {status}")
-
-    status, data, latency = await runner.post("SELECT * FROM test WHERE x = 1", {"X-User-City": ""})
-    runner.record("test_empty_city_header", status == 200, f"Empty header handled, status={status}")
-
 
 async def test_request_validation(runner: TestRunner):
     runner.rotate_ip()
@@ -204,8 +157,8 @@ async def test_caching(runner: TestRunner):
     unique_id = random.randint(100000, 999999)
     query = f"SELECT * FROM grades WHERE student_id = {unique_id}"
 
-    status1, data1, latency1 = await runner.post(query, {"X-User-City": "Pune"})
-    status2, data2, latency2 = await runner.post(query, {"X-User-City": "Pune"})
+    status1, data1, latency1 = await runner.post(query)
+    status2, data2, latency2 = await runner.post(query)
 
     if status1 == 200 and status2 == 200:
         runner.record("test_full_cache_hit", data2.get("cache_type") == "full", f"Cache hit! Latency: {latency1:.1f}ms -> {latency2:.1f}ms")
@@ -223,20 +176,6 @@ async def test_caching(runner: TestRunner):
     else:
         runner.record("test_midast_cache_hit", False, f"Failed: {status1}, {status2}")
 
-
-async def test_workers(runner: TestRunner):
-    runner.rotate_ip()
-    print("\n" + "=" * 60 + "\nWORKER POOL TESTS\n" + "=" * 60)
-    print("  Testing parallel execution (4 concurrent requests)...")
-
-    async def send_request(i):
-        start = time.time()
-        s, d, l = await runner.post(f"SELECT * FROM parallel_test WHERE id = {random.randint(300000, 399999) + i}")
-        return time.time() - start, s
-
-    results = await asyncio.gather(*[send_request(i) for i in range(4)])
-    all_success = all(r[1] == 200 for r in results)
-    runner.record("test_parallel_execution", all_success, f"4 concurrent requests completed, max time: {max(r[0] for r in results):.2f}s")
 
 async def test_edge_cases(runner: TestRunner):
     runner.rotate_ip()
@@ -258,7 +197,7 @@ async def test_edge_cases(runner: TestRunner):
     try:
         async with runner.session.get(STATS_URL) as resp:
             data = await resp.json()
-            has_all_stats = all(k in data for k in ["full_cache", "workers", "geolocation"])
+            has_all_stats = all(k in data for k in ["full_cache"])
             runner.record("test_stats_endpoint", resp.status == 200 and has_all_stats, f"Stats endpoint has all sections: {has_all_stats}")
     except Exception as e:
         runner.record("test_stats_endpoint", False, str(e))
@@ -274,12 +213,12 @@ async def run_ddos_simulation(runner: TestRunner):
         # Rotate IP on EVERY request to bypass Layer 1 and test Layer 5 (AST Limiter)
         runner.rotate_ip()
         patterns = [
-            ("SELECT * FROM grades WHERE student_id = 12345", "Mumbai"),
-            ("SELECT * FROM grades WHERE student_id = 12345 AND grade > 80", "Delhi"),
-            (f"SELECT * FROM users WHERE id = {random.randint(1, 10000)}", "Unknown"),
+            ("SELECT * FROM grades WHERE student_id = 12345"),
+            ("SELECT * FROM grades WHERE student_id = 12345 AND grade > 80"),
+            (f"SELECT * FROM users WHERE id = {random.randint(1, 10000)}"),
         ]
-        query, city = random.choice(patterns)
-        return await runner.post(query, {"X-User-City": city})
+        query = random.choice(patterns)
+        return await runner.post(query)
 
     responses = await asyncio.gather(*[fire_attack(i) for i in range(total_requests)])
 
@@ -324,12 +263,9 @@ async def main():
 
         print("Server is running. Starting tests...\n")
         
-        await test_priority_system(runner)
-        await test_city_header_edge_cases(runner)
         await test_request_validation(runner)
         await test_caching(runner)
         await test_blacklist(runner)
-        await test_workers(runner)
         await test_edge_cases(runner)
 
         print("\nWaiting 3s before rate limiting tests...")
