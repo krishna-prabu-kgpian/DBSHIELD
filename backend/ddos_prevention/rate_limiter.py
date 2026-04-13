@@ -45,20 +45,25 @@ class IPRateLimiter:
 
     def __init__(self):
         self._ip_data: Dict[str, IPTrackingInfo] = {}
-        self._lock = asyncio.Lock()
+        self._ip_locks: Dict[str, asyncio.Lock] = {}
+        self._state_lock = asyncio.Lock()
         self._blacklist: Set[str] = set()
         self._last_cleanup = time.time()
 
     async def check_ip(self, ip_address: str) -> Tuple[bool, str]:
         """Check if IP is allowed to make request."""
-        async with self._lock:
+        async with self._state_lock:
             if ip_address in self._blacklist:
                 return False, "IP permanently blacklisted"
 
             if ip_address not in self._ip_data:
                 self._ip_data[ip_address] = IPTrackingInfo()
+                self._ip_locks[ip_address] = asyncio.Lock()
 
             info = self._ip_data[ip_address]
+            ip_lock = self._ip_locks[ip_address]
+
+        async with ip_lock:
             current_time = time.time()
 
             if info.penalty_until > current_time:
@@ -93,7 +98,8 @@ class IPRateLimiter:
         info.last_violation_time = current_time
 
         if info.violation_count >= VIOLATIONS_FOR_BLACKLIST:
-            self._blacklist.add(ip)
+            async with self._state_lock:
+                self._blacklist.add(ip)
             info.is_blacklisted = True
             print(f"[BLACKLIST] IP {ip} permanently blacklisted after {info.violation_count} violations")
         elif info.violation_count >= VIOLATIONS_FOR_TEMP_BAN:
@@ -105,23 +111,29 @@ class IPRateLimiter:
 
     async def _cleanup_old_ips(self, current_time: float):
         """Remove IPs with no recent activity."""
-        stale_ips = [
-            ip for ip, info in self._ip_data.items()
-            if (not info.request_timestamps or
-                current_time - max(info.request_timestamps) > 300)
-            and not info.is_blacklisted
-            and info.penalty_until < current_time
-        ]
-        for ip in stale_ips:
-            del self._ip_data[ip]
+        async with self._state_lock:
+            stale_ips = [
+                ip for ip, info in self._ip_data.items()
+                if (not info.request_timestamps or
+                    current_time - max(info.request_timestamps) > 300)
+                and not info.is_blacklisted
+                and info.penalty_until < current_time
+            ]
+            for ip in stale_ips:
+                del self._ip_data[ip]
+                self._ip_locks.pop(ip, None)
 
     async def check_connection(self, ip: str, delta: int) -> bool:
         """Track connection count."""
-        async with self._lock:
+        async with self._state_lock:
             if ip not in self._ip_data:
                 self._ip_data[ip] = IPTrackingInfo()
+                self._ip_locks[ip] = asyncio.Lock()
 
             info = self._ip_data[ip]
+            ip_lock = self._ip_locks[ip]
+
+        async with ip_lock:
             info.connection_count = max(0, info.connection_count + delta)
 
             if delta > 0 and info.connection_count > IP_MAX_CONNECTIONS:
@@ -130,7 +142,7 @@ class IPRateLimiter:
 
     async def add_to_blacklist(self, ip: str):
         """Manually blacklist an IP."""
-        async with self._lock:
+        async with self._state_lock:
             self._blacklist.add(ip)
             if ip in self._ip_data:
                 self._ip_data[ip].is_blacklisted = True
@@ -138,7 +150,7 @@ class IPRateLimiter:
 
     async def remove_from_blacklist(self, ip: str):
         """Remove IP from blacklist."""
-        async with self._lock:
+        async with self._state_lock:
             self._blacklist.discard(ip)
             if ip in self._ip_data:
                 self._ip_data[ip].is_blacklisted = False
@@ -148,7 +160,7 @@ class IPRateLimiter:
 
     async def get_stats(self) -> dict:
         """Get rate limiter statistics."""
-        async with self._lock:
+        async with self._state_lock:
             return {
                 "tracked_ips": len(self._ip_data),
                 "blacklisted_ips": len(self._blacklist),
