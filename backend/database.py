@@ -22,11 +22,10 @@ def initialize_database() -> None:
         schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
         conn.executescript(schema_sql)
         conn.execute(
-            """
+            f"""
             INSERT OR IGNORE INTO users (username, email, password, role, name, phone)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            ("admin", "admin@dbshield.local", "admin123", "admin", "Admin User", "9000000000"),
+            VALUES ('admin', 'admin@dbshield.local', 'admin123', 'admin', 'Admin User', '9000000000')
+            """
         )
         conn.commit()
 

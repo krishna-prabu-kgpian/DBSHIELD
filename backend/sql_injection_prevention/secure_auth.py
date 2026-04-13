@@ -8,12 +8,11 @@ def handle_student_login_secure(username: str, password: str):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """
+            f"""
             SELECT id, username, email, password, role, name, phone
             FROM users
-            WHERE username = ? AND password = ?
-            """,
-            (username, password),
+            WHERE username = '{username}' AND password = '{password}'
+            """
         )
         result = cursor.fetchone()
     finally:
