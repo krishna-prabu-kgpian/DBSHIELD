@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from database import connect_to_db, handle_student_login
 from sql_injection_prevention.secure_auth import handle_student_login_secure
-from database import handle_student_login
 from erp_placeholders import (
     add_material_placeholder,
     admin_add_course_placeholder,
@@ -25,6 +24,26 @@ from erp_placeholders import (
     search_courses_placeholder,
     student_courses_placeholder,
     student_grades_placeholder,
+)
+from sql_injection_prevention.secure_erp_placeholders import (
+    add_material_placeholder_secure,
+    admin_add_course_placeholder_secure,
+    admin_add_student_placeholder_secure,
+    admin_add_teacher_placeholder_secure,
+    admin_delete_course_placeholder_secure,
+    admin_delete_teacher_placeholder_secure,
+    admin_do_anything_placeholder_secure,
+    admin_remove_student_placeholder_secure,
+    admit_student_placeholder_secure,
+    assign_grade_placeholder_secure,
+    create_assignment_placeholder_secure,
+    create_course_placeholder_secure,
+    deregister_course_placeholder_secure,
+    enroll_course_placeholder_secure,
+    remove_student_placeholder_secure,
+    search_courses_placeholder_secure,
+    student_courses_placeholder_secure,
+    student_grades_placeholder_secure,
 )
 
 # Import DDoS protection modules
@@ -175,52 +194,62 @@ def login(payload: LoginPayload) -> dict[str, str]:
 
 @app.post("/api/student/search-courses")
 def student_search_courses(payload: CourseSearchPayload) -> dict[str, list[dict[str, str]]]:
-    return {"courses": search_courses_placeholder(payload.query)}
+    handler = search_courses_placeholder_secure if ENABLE_SQLI_PROTECTION else search_courses_placeholder
+    return {"courses": handler(payload.query)}
 
 
 @app.post("/api/student/view-grades")
 def student_view_grades(payload: StudentGradePayload) -> dict[str, list[dict[str, str]]]:
-    return {"grades": student_grades_placeholder(payload.student_username)}
+    handler = student_grades_placeholder_secure if ENABLE_SQLI_PROTECTION else student_grades_placeholder
+    return {"grades": handler(payload.student_username)}
 
 
 @app.post("/api/student/my-courses")
 def student_my_courses(payload: StudentGradePayload) -> dict[str, list[dict[str, str]]]:
-    return {"courses": student_courses_placeholder(payload.student_username)}
+    handler = student_courses_placeholder_secure if ENABLE_SQLI_PROTECTION else student_courses_placeholder
+    return {"courses": handler(payload.student_username)}
 
 
 @app.post("/api/student/enroll")
 def student_enroll(payload: StudentCoursePayload) -> dict[str, object]:
-    return enroll_course_placeholder(payload.student_username, payload.course_code)
+    handler = enroll_course_placeholder_secure if ENABLE_SQLI_PROTECTION else enroll_course_placeholder
+    return handler(payload.student_username, payload.course_code)
 
 
 @app.post("/api/student/deregister")
 def student_deregister(payload: StudentCoursePayload) -> dict[str, object]:
-    return deregister_course_placeholder(payload.student_username, payload.course_code)
+    handler = deregister_course_placeholder_secure if ENABLE_SQLI_PROTECTION else deregister_course_placeholder
+    return handler(payload.student_username, payload.course_code)
 
 
 @app.post("/api/instructor/admit-student")
 def instructor_admit_student(payload: AdmitStudentPayload) -> dict[str, object]:
-    return admit_student_placeholder(payload.student_username, payload.course_code)
+    handler = admit_student_placeholder_secure if ENABLE_SQLI_PROTECTION else admit_student_placeholder
+    return handler(payload.student_username, payload.course_code)
 
 
 @app.post("/api/instructor/remove-student")
 def instructor_remove_student(payload: StudentCoursePayload) -> dict[str, object]:
-    return remove_student_placeholder(payload.student_username, payload.course_code)
+    handler = remove_student_placeholder_secure if ENABLE_SQLI_PROTECTION else remove_student_placeholder
+    return handler(payload.student_username, payload.course_code)
 
 
 @app.post("/api/instructor/assign-grade")
 def instructor_assign_grade(payload: GradeStudentPayload) -> dict[str, object]:
-    return assign_grade_placeholder(payload.student_username, payload.course_code, payload.grade)
+    handler = assign_grade_placeholder_secure if ENABLE_SQLI_PROTECTION else assign_grade_placeholder
+    return handler(payload.student_username, payload.course_code, payload.grade)
 
 
 @app.post("/api/instructor/create-assignment")
 def instructor_create_assignment(payload: AssignmentPayload) -> dict[str, object]:
-    return create_assignment_placeholder(payload.course_code, payload.title)
+    handler = create_assignment_placeholder_secure if ENABLE_SQLI_PROTECTION else create_assignment_placeholder
+    return handler(payload.course_code, payload.title)
 
 
 @app.post("/api/instructor/create-course")
 def instructor_create_course(payload: CreateCoursePayload) -> dict[str, object]:
-    return create_course_placeholder(
+    handler = create_course_placeholder_secure if ENABLE_SQLI_PROTECTION else create_course_placeholder
+    return handler(
         payload.creator_username,
         payload.course_code,
         payload.title,
@@ -230,39 +259,47 @@ def instructor_create_course(payload: CreateCoursePayload) -> dict[str, object]:
 
 @app.post("/api/instructor/add-material")
 def instructor_add_material(payload: MaterialPayload) -> dict[str, object]:
-    return add_material_placeholder(payload.course_code, payload.title, payload.resource_link)
+    handler = add_material_placeholder_secure if ENABLE_SQLI_PROTECTION else add_material_placeholder
+    return handler(payload.course_code, payload.title, payload.resource_link)
 
 
 @app.post("/api/admin/add-teacher")
 def admin_add_teacher(payload: UserProvisionPayload) -> dict[str, object]:
-    return admin_add_teacher_placeholder(payload.username, payload.name, payload.email)
+    handler = admin_add_teacher_placeholder_secure if ENABLE_SQLI_PROTECTION else admin_add_teacher_placeholder
+    return handler(payload.username, payload.name, payload.email)
 
 
 @app.post("/api/admin/delete-teacher")
 def admin_delete_teacher(payload: UsernamePayload) -> dict[str, object]:
-    return admin_delete_teacher_placeholder(payload.username)
+    handler = admin_delete_teacher_placeholder_secure if ENABLE_SQLI_PROTECTION else admin_delete_teacher_placeholder
+    return handler(payload.username)
 
 
 @app.post("/api/admin/add-student")
 def admin_add_student(payload: UserProvisionPayload) -> dict[str, object]:
-    return admin_add_student_placeholder(payload.username, payload.name, payload.email)
+    handler = admin_add_student_placeholder_secure if ENABLE_SQLI_PROTECTION else admin_add_student_placeholder
+    return handler(payload.username, payload.name, payload.email)
 
 
 @app.post("/api/admin/remove-student")
 def admin_remove_student(payload: UsernamePayload) -> dict[str, object]:
-    return admin_remove_student_placeholder(payload.username)
+    handler = admin_remove_student_placeholder_secure if ENABLE_SQLI_PROTECTION else admin_remove_student_placeholder
+    return handler(payload.username)
 
 
 @app.post("/api/admin/add-course")
 def admin_add_course(payload: CourseProvisionPayload) -> dict[str, object]:
-    return admin_add_course_placeholder(payload.course_code, payload.title, payload.credits)
+    handler = admin_add_course_placeholder_secure if ENABLE_SQLI_PROTECTION else admin_add_course_placeholder
+    return handler(payload.course_code, payload.title, payload.credits)
 
 
 @app.post("/api/admin/delete-course")
 def admin_delete_course(payload: CourseCodePayload) -> dict[str, object]:
-    return admin_delete_course_placeholder(payload.course_code)
+    handler = admin_delete_course_placeholder_secure if ENABLE_SQLI_PROTECTION else admin_delete_course_placeholder
+    return handler(payload.course_code)
 
 
 @app.post("/api/admin/action")
 def admin_action(payload: CourseSearchPayload) -> dict[str, object]:
-    return admin_do_anything_placeholder(payload.query)
+    handler = admin_do_anything_placeholder_secure if ENABLE_SQLI_PROTECTION else admin_do_anything_placeholder
+    return handler(payload.query)
