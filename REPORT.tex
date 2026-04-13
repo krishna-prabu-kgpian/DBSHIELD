@@ -157,9 +157,11 @@ In the \textit{Shielded Implementation}, the input from the frontend is processe
 
 \subsection{SQL Injection Study}
 
-The first attack category focuses on SQL injection. The purpose of this part is to evaluate whether user-supplied input can alter backend query behavior in ways that compromise authentication, reveal data, or affect database integrity. In the unshielded system, controlled adversarial inputs are supplied to input surfaces such as login-related or database-facing request parameters. The study considers representative categories such as authentication bypass attempts, boolean inference, disclosure-oriented query manipulation, and unauthorized modification attempts.
+The SQL injection study is centered on the login path of the ERP backend, since authentication is both security-critical and directly connected to database query construction. In the unshielded implementation, the login query is formed by concatenating the supplied username and password directly into a SQL statement. In the shielded implementation, the same functional path is preserved but the query is executed using parameterized placeholders so that the supplied input is treated strictly as data. This makes the comparison focused and fair: the application behavior is held constant while the query handling strategy is changed.
 
-The same broad categories of tests are then repeated against the shielded system. The expected outcome is that secure handling of database queries prevents the input from changing query semantics, reduces information leakage, and preserves the integrity of stored records. The comparison is therefore based not only on whether the attack succeeds, but also on how safely the application behaves in the face of malformed or adversarial input.
+To evaluate the two implementations, we use a controlled set of SQL injection payloads against the same login interface and database state. The test corpus is organized into representative categories. The first category contains authentication bypass payloads such as comment-based truncation and tautology conditions intended to force the \texttt{WHERE} clause to evaluate as true. The second category contains \texttt{UNION}-based payloads that attempt to extract rows from the \texttt{users} table, disclose database metadata such as schema details, or forge a row whose returned role appears administrative. The third category contains blind inference payloads that do not rely on visibly dumping rows, but instead test properties of hidden values through predicates such as password length and prefix matching. A final category includes heavier inference-style queries intended to show that injected logic can also increase backend work while probing secret-dependent conditions.
+
+The experiments are executed through the project test harness so that each payload is evaluated consistently against both implementations. For each case, the main observation is whether the injected input changes query semantics and produces a successful login or unauthorized disclosure. In addition, we record whether the payload merely fails because it is incompatible with the current SQLite execution path, as this helps separate genuine defensive success from database-specific syntax limitations. This is especially relevant for stacked-query and PostgreSQL-specific payloads, which are documented but not expected to execute in the present login implementation.
 
 \subsection{Denial of Service Study}
 
@@ -198,9 +200,32 @@ The report is intended to expand into a compact ten-page document. After the pro
 
 Each attack section can later describe the attack goal, the part of the ERP being tested, the controlled test cases used, and the expected difference between the vulnerable and hardened versions of the system.
 
-\section{Results Placeholder}
+\section{Results}
 
-This section is currently a placeholder. In the next stage, it can summarize the observed behavior of the unshielded and shielded systems under the three attack categories. The final comparison can include attack success, service degradation, unauthorized access, information exposure, and the effect of the applied safeguards.
+\subsection{SQL Injection Results}
+
+The SQL injection experiments show a clear separation between the behavior of the unshielded and shielded login paths. In the unshielded implementation, all documented SQLite-compatible payloads that were designed to alter the login query succeeded in changing backend behavior. Authentication bypass payloads were able to return a valid row without knowledge of the correct password, while \texttt{UNION}-based payloads demonstrated that the result set could be manipulated to expose user data, enumerate schema information, or fabricate a record with an administrative role. Blind predicate payloads also succeeded, showing that even when the attacker does not directly dump table contents, injected conditions can still be used to infer sensitive information from application responses.
+
+In contrast, the shielded implementation blocked all of these working payloads while still permitting legitimate login with correct credentials. Because the secure path uses parameterized execution, the malicious strings were interpreted as ordinary input values rather than as executable SQL fragments. As a result, they no longer modified the structure of the query, did not return forged rows, and did not reveal database metadata. This demonstrates that the protection is not based on rejecting only a few suspicious keywords, but on preventing adversarial input from altering query semantics at all.
+
+\begin{table}[h]
+\centering
+\caption{Observed outcome of SQL injection tests on the login path}
+\begin{tabular}{p{0.31\linewidth} p{0.28\linewidth} p{0.28\linewidth}}
+\toprule
+\textbf{Payload category} & \textbf{Unshielded system} & \textbf{Shielded system} \\
+\midrule
+Comment and tautology login bypass & Successful unauthorized login & Blocked; login fails normally \\
+\texttt{UNION}-based data extraction & User data and query-controlled rows returned & Blocked; no data disclosure \\
+\texttt{UNION}-based role forgery & Forged administrative-looking row returned & Blocked; role cannot be forged \\
+Blind inference predicates & Secret-dependent conditions evaluate successfully & Blocked; predicates treated as plain text \\
+Schema enumeration payloads & Table and column metadata exposed & Blocked; no metadata leakage \\
+Heavier inference-style payloads & Query logic can be altered and made more expensive & Blocked; input does not change execution logic \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Some additional payloads were also examined to clarify the limits of the current demonstration. PostgreSQL-specific constructs such as \texttt{pg\_sleep()}, \texttt{version()}, or \texttt{information\_schema}-based extraction did not succeed against the current vulnerable login path because the project uses SQLite for this experiment. Similarly, a stacked-query payload attempting to append an \texttt{INSERT} statement raised an execution error rather than succeeding, because the present \texttt{sqlite3.execute()} path does not permit multiple statements in that form. These cases are important because they show that not every SQL injection string is universally portable; however, they do not weaken the main result. The vulnerable system remains exploitable by several practical SQLite-compatible payloads, whereas the shielded system prevents the tested SQL injection attempts while preserving normal authentication behavior.
 
 \section{References Placeholder}
 

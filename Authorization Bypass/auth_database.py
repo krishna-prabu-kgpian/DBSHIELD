@@ -80,8 +80,7 @@ def verify_user_role(username: str, claimed_role: str) -> bool:
             conn = sqlite3.connect(str(db_path))
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT role FROM users WHERE username = ?",
-                (username,)
+                f"SELECT role FROM users WHERE username = '{username}'"
             )
             result = cursor.fetchone()
             conn.close()

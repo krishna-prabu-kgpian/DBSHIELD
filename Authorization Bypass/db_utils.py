@@ -41,13 +41,13 @@ def search_courses_db(query: str) -> list[dict]:
         cursor = conn.cursor()
         # Search for courses that match query in code or title
         search_term = f"%{query.lower()}%"
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, course_code as code, course_title as title, department
             FROM courses
-            WHERE LOWER(course_code) LIKE ? 
-               OR LOWER(course_title) LIKE ?
+            WHERE LOWER(course_code) LIKE '{search_term}' 
+               OR LOWER(course_title) LIKE '{search_term}'
             LIMIT 20
-        """, (search_term, search_term))
+        """)
         
         results = cursor.fetchall()
         return [dict(row) for row in results] if results else []
@@ -69,7 +69,7 @@ def get_student_grades_db(student_username: str) -> list[dict]:
     
     try:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT 
                 c.course_code,
                 c.course_title,
@@ -78,9 +78,9 @@ def get_student_grades_db(student_username: str) -> list[dict]:
             FROM enrollments e
             JOIN courses c ON e.course_id = c.id
             JOIN users u ON e.student_id = u.id
-            WHERE u.username = ? AND e.grade IS NOT NULL
+            WHERE u.username = '{student_username}' AND e.grade IS NOT NULL
             ORDER BY e.enrollment_date DESC
-        """, (student_username,))
+        """)
         
         results = cursor.fetchall()
         return [dict(row) for row in results] if results else []
@@ -103,7 +103,7 @@ def enroll_student_db(student_username: str, course_code: str) -> dict:
     try:
         cursor = conn.cursor()
         # Get student ID from username
-        cursor.execute("SELECT id FROM users WHERE username = ?", (student_username,))
+        cursor.execute(f"SELECT id FROM users WHERE username = '{student_username}'")
         student = cursor.fetchone()
         
         if not student:
@@ -112,7 +112,7 @@ def enroll_student_db(student_username: str, course_code: str) -> dict:
         student_id = student['id']
         
         # Get course ID from course code
-        cursor.execute("SELECT id FROM courses WHERE course_code = ?", (course_code,))
+        cursor.execute(f"SELECT id FROM courses WHERE course_code = '{course_code}'")
         course = cursor.fetchone()
         
         if not course:
@@ -122,17 +122,15 @@ def enroll_student_db(student_username: str, course_code: str) -> dict:
         
         # Check if already enrolled
         cursor.execute(
-            "SELECT id FROM enrollments WHERE student_id = ? AND course_id = ?",
-            (student_id, course_id)
+            f"SELECT id FROM enrollments WHERE student_id = {student_id} AND course_id = {course_id}"
         )
         if cursor.fetchone():
             return {"success": False, "message": f"Student already enrolled in {course_code}"}
         
         # Insert enrollment
         cursor.execute(
-            """INSERT INTO enrollments (student_id, course_id)
-               VALUES (?, ?)""",
-            (student_id, course_id)
+                f"""INSERT INTO enrollments (student_id, course_id)
+                    VALUES ({student_id}, {course_id})"""
         )
         conn.commit()
         
@@ -159,14 +157,14 @@ def admit_student_to_course_db(student_username: str, course_code: str) -> dict:
     try:
         cursor = conn.cursor()
         # Get student ID
-        cursor.execute("SELECT id FROM users WHERE username = ?", (student_username,))
+        cursor.execute(f"SELECT id FROM users WHERE username = '{student_username}'")
         student = cursor.fetchone()
         
         if not student:
             return {"success": False, "message": f"Student {student_username} not found"}
         
         # Get course ID
-        cursor.execute("SELECT id FROM courses WHERE course_code = ?", (course_code,))
+        cursor.execute(f"SELECT id FROM courses WHERE course_code = '{course_code}'")
         course = cursor.fetchone()
         
         if not course:
@@ -174,9 +172,8 @@ def admit_student_to_course_db(student_username: str, course_code: str) -> dict:
         
         # Update enrollment status to admitted
         cursor.execute(
-            """UPDATE enrollments SET status = 'admitted'
-               WHERE student_id = ? AND course_id = ?""",
-            (student['id'], course['id'])
+                f"""UPDATE enrollments SET status = 'admitted'
+                    WHERE student_id = {student['id']} AND course_id = {course['id']}"""
         )
         conn.commit()
         
@@ -208,14 +205,14 @@ def assign_grade_to_student_db(student_username: str, course_code: str, grade: s
             return {"success": False, "message": f"Invalid grade: {grade}"}
         
         # Get student ID
-        cursor.execute("SELECT id FROM users WHERE username = ?", (student_username,))
+        cursor.execute(f"SELECT id FROM users WHERE username = '{student_username}'")
         student = cursor.fetchone()
         
         if not student:
             return {"success": False, "message": f"Student {student_username} not found"}
         
         # Get course ID
-        cursor.execute("SELECT id FROM courses WHERE course_code = ?", (course_code,))
+        cursor.execute(f"SELECT id FROM courses WHERE course_code = '{course_code}'")
         course = cursor.fetchone()
         
         if not course:
@@ -223,9 +220,8 @@ def assign_grade_to_student_db(student_username: str, course_code: str, grade: s
         
         # Update grade in enrollment
         cursor.execute(
-            """UPDATE enrollments SET grade = ?
-               WHERE student_id = ? AND course_id = ?""",
-            (grade, student['id'], course['id'])
+                f"""UPDATE enrollments SET grade = '{grade}'
+                    WHERE student_id = {student['id']} AND course_id = {course['id']}"""
         )
         conn.commit()
         
@@ -252,7 +248,7 @@ def create_assignment_db(course_code: str, title: str, description: str = "") ->
     try:
         cursor = conn.cursor()
         # Get course ID
-        cursor.execute("SELECT id FROM courses WHERE course_code = ?", (course_code,))
+        cursor.execute(f"SELECT id FROM courses WHERE course_code = '{course_code}'")
         course = cursor.fetchone()
         
         if not course:
@@ -260,9 +256,8 @@ def create_assignment_db(course_code: str, title: str, description: str = "") ->
         
         # Insert assignment
         cursor.execute(
-            """INSERT INTO assignments (course_id, title, description)
-               VALUES (?, ?, ?)""",
-            (course['id'], title, description)
+                f"""INSERT INTO assignments (course_id, title, description)
+                    VALUES ({course['id']}, '{title}', '{description}')"""
         )
         conn.commit()
         
