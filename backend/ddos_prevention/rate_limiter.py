@@ -12,7 +12,6 @@ from typing import Dict, List, Set, Tuple
 from .config import (
     IP_REQUESTS_PER_SECOND,
     IP_REQUESTS_PER_MINUTE,
-    IP_MAX_CONNECTIONS,
     VIOLATIONS_FOR_TEMP_BAN,
     VIOLATIONS_FOR_BLACKLIST,
     BASE_BAN_SECONDS,
@@ -35,7 +34,6 @@ class IPTrackingInfo:
     last_violation_time: float = 0
     penalty_until: float = 0
     is_blacklisted: bool = False
-    connection_count: int = 0
 
 
 class IPRateLimiter:
@@ -122,23 +120,6 @@ class IPRateLimiter:
             for ip in stale_ips:
                 del self._ip_data[ip]
                 self._ip_locks.pop(ip, None)
-
-    async def check_connection(self, ip: str, delta: int) -> bool:
-        """Track connection count."""
-        async with self._state_lock:
-            if ip not in self._ip_data:
-                self._ip_data[ip] = IPTrackingInfo()
-                self._ip_locks[ip] = asyncio.Lock()
-
-            info = self._ip_data[ip]
-            ip_lock = self._ip_locks[ip]
-
-        async with ip_lock:
-            info.connection_count = max(0, info.connection_count + delta)
-
-            if delta > 0 and info.connection_count > IP_MAX_CONNECTIONS:
-                return False
-            return True
 
     async def add_to_blacklist(self, ip: str):
         """Manually blacklist an IP."""

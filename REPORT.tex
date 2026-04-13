@@ -167,9 +167,9 @@ The experiments are executed through the project test harness and through the ap
 
 \subsection{Denial of Service Study}
 
-The second attack category focuses on denial of service in the context of application and database resource abuse. In this project, denial of service is not treated as a raw network flooding exercise, but as a study of whether expensive or poorly bounded requests can degrade responsiveness, consume disproportionate resources, or make the system unstable. The unshielded system is examined using controlled requests that are expected to trigger heavy backend or database work.
+The denial-of-service component studies a realistic \emph{application-level} problem: a flood of login requests can force the backend to repeatedly execute expensive database work and thereby make the ERP portal unusably slow for normal users. In the unshielded version, each login attempt is allowed to reach the vulnerable login path, which includes simulated database delay. When many such requests are issued concurrently, backend worker capacity is consumed by attacker traffic, and the frontend becomes sluggish even for legitimate clicks.
 
-The shielded system is then evaluated under the same workload patterns. The expectation is that defensive mechanisms such as better request filtering, bounded execution, query restrictions, or rate-aware handling will reduce performance degradation and improve service stability. The comparison emphasizes availability and resilience rather than only whether a single request succeeds.
+The shielded version solves this by filtering malicious traffic \emph{before} it reaches the expensive login function. Our attack script marks requests with spoofed \texttt{X-Forwarded-For} headers to imitate rotating source IPs. The protection layer treats such forwarded IPs as untrusted in the local deployment, blocks spoofed requests early, and applies per-IP rate limiting so that repeated bursts are rejected cheaply. In addition, login execution is bounded with a small concurrency limit so that even under load, a valid user request can still be served smoothly. Thus, the main goal is not merely to reject some requests, but to preserve responsiveness for legitimate users by preventing attack traffic from consuming the database-backed login path.
 
 \subsection{Authorization Bypass Study}
 
@@ -253,7 +253,7 @@ PostgreSQL Global Development Group.
 \textit{PostgreSQL Documentation}.
 Available online.
 
-\bibitem{fastapi}
+\bibitem{fastapi}                                                                                                               
 FastAPI.
 \textit{FastAPI Documentation}.
 Available online.

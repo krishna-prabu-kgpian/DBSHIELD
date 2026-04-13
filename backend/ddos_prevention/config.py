@@ -9,7 +9,6 @@ RATE_LIMIT_WINDOW = 10  # Window in seconds
 # --- IP-Based Rate Limiting ---
 IP_REQUESTS_PER_SECOND = 10
 IP_REQUESTS_PER_MINUTE = 100
-IP_MAX_CONNECTIONS = 20
 
 # --- Penalty Escalation ---
 VIOLATIONS_FOR_TEMP_BAN = 3
