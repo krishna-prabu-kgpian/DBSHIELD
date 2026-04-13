@@ -52,7 +52,7 @@ from sql_injection_prevention.secure_erp_placeholders import (
     student_courses_placeholder_secure,
     student_grades_placeholder_secure,
 )
-from ddos_prevention.rate_limiter import IPRateLimiter
+from ddos_prevention.rate_limiter import IPRateLimiter, BoundedQueryHistory
 
 import asyncio
 import time
