@@ -1,9 +1,6 @@
 import sys
 import importlib.util
 from pathlib import Path
-from typing import Optional
-import os
-
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -56,6 +53,7 @@ try:
     set_token_verifier = auth_module.set_token_verifier
     create_session_token = auth_db_module.create_session_token
     verify_session_token = auth_db_module.verify_session_token
+
 except ImportError as e:
     # Fallback if module not found
     print(f"Warning: Authorization Bypass module not found: {e}")
@@ -81,12 +79,6 @@ ENFORCE_RBAC = True
 # =====================================================================
 
 app = FastAPI(title="DBSHIELD Backend")
-
-# =====================================================================
-# DEMONSTRATION TOGGLES
-ENABLE_DDOS_PROTECTION = False
-ENABLE_SQLI_PROTECTION = False
-# =====================================================================
 
 ddos_protection = AppDDoSProtection(load_app_ddos_settings(ENABLE_DDOS_PROTECTION))
 app.middleware("http")(ddos_protection.middleware)
