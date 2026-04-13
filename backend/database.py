@@ -40,7 +40,7 @@ def handle_student_login(username: str, password: str):
     
     # Simulate realistic database query parsing overhead
     # During a DDoS, a database parsing complex queries (or under high connection load) slows down significantly.
-    time.sleep(0.05)
+    time.sleep(0.5)
     
     sql_query = f"SELECT * from users WHERE username='{username}' AND password='{password}'"
     conn = connect_to_db()

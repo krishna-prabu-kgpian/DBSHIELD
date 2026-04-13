@@ -63,6 +63,47 @@ Default sample logins after seeding:
 - `student1 / pass1`
 - `student2 / pass2`
 
+### 4. For Login :
+```
+TOKEN=$(curl -s -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"student1","password":"pass1"}' | jq -r '.token')
+```
+
+### 5. Admin Action without token
+```
+curl -s -X POST http://localhost:8000/api/admin/action \
+  -H "Content-Type: application/json" \
+  -d '{"query":"test"}' | jq .
+```
+
+### 6. Admin Action with token
+```
+curl -s -X POST http://localhost:8000/api/admin/action \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"test"}' | jq .
+```
+
+### 7. For Unauthorized grade viewing of another students :
+```
+curl -X POST http://localhost:8000/api/student/view-grades \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN"   \
+  -d '{"student_username":"student2"}' | jq .
+```
+
+### 8. Add student
+```
+curl -s -X POST http://localhost:8000/api/admin/add-student \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"newstudent","name":"New Student","email":"new@example.com"}' | jq .
+```
+
+
+
+
 ## 1. Group Details
 
 **Team GBDB**
