@@ -1,8 +1,7 @@
 import { useState } from 'react';
+import { postJson } from '../api';
 
-const API_BASE_URL = 'http://localhost:8000';
-
-function AdminPage({ displayName, username, onLogout }) {
+function AdminPage({ authToken, displayName, username, onAuthFailure, onLogout }) {
   const [teacherForm, setTeacherForm] = useState({ username: '', name: '', email: '' });
   const [studentForm, setStudentForm] = useState({ username: '', name: '', email: '' });
   const [courseForm, setCourseForm] = useState({ courseCode: '', title: '', credits: '3' });
@@ -23,18 +22,16 @@ function AdminPage({ displayName, username, onLogout }) {
   ].filter(Boolean).length;
 
   const postRequest = async (path, payload) => {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    try {
+      return await postJson(path, payload, authToken);
+    } catch (error) {
+      if (error.status === 401) {
+        onAuthFailure?.('Your session expired or is invalid. Please sign in again.');
+        throw error;
+      }
 
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || 'Request failed.');
+      throw error;
     }
-
-    return data;
   };
 
   const runAction = async (label, path, payload) => {
@@ -44,7 +41,9 @@ function AdminPage({ displayName, username, onLogout }) {
       const message = data.message || `${label} completed.`;
       setStatus(message);
     } catch (error) {
-      setStatus(error.message || `Unable to ${label.toLowerCase()}.`);
+      if (error.status !== 401) {
+        setStatus(error.message || `Unable to ${label.toLowerCase()}.`);
+      }
     } finally {
       setIsLoading(false);
     }

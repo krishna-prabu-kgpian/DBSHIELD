@@ -4,53 +4,104 @@ import StudentPage from './pages/StudentPage';
 import InstructorPage from './pages/InstructorPage';
 import AdminPage from './pages/AdminPage';
 import iitkgpLogo from './assets/iitkgp-logo.jpeg';
+import { postJson } from './api';
+
+const SESSION_STORAGE_KEY = 'dbshield.session';
+const EMPTY_SESSION = {
+  token: '',
+  username: '',
+  role: '',
+  name: '',
+};
+
+const readStoredSession = () => {
+  if (typeof window === 'undefined') {
+    return EMPTY_SESSION;
+  }
+
+  try {
+    const rawSession = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!rawSession) {
+      return EMPTY_SESSION;
+    }
+
+    const parsedSession = JSON.parse(rawSession);
+    const role = typeof parsedSession.role === 'string' ? parsedSession.role.toLowerCase() : '';
+
+    return {
+      token: typeof parsedSession.token === 'string' ? parsedSession.token : '',
+      username: typeof parsedSession.username === 'string' ? parsedSession.username : '',
+      role: ['student', 'instructor', 'admin'].includes(role) ? role : '',
+      name: typeof parsedSession.name === 'string' ? parsedSession.name : '',
+    };
+  } catch {
+    return EMPTY_SESSION;
+  }
+};
+
+const writeStoredSession = (session) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+};
+
+const clearStoredSession = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(SESSION_STORAGE_KEY);
+};
 
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loggedInName, setLoggedInName] = useState('');
-  const [loggedInUsername, setLoggedInUsername] = useState('');
-  const [role, setRole] = useState('');
+  const [session, setSession] = useState(readStoredSession);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setStatus('');
 
-    if (!username.trim() || !password) {
+    const trimmedUsername = username.trim();
+
+    if (!trimmedUsername || !password) {
       setStatus('Please enter both username and password.');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const response = await fetch('http://localhost:8000/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username,
-          password,
-        }),
+      const data = await postJson('/api/login', {
+        username: trimmedUsername,
+        password,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Login request failed.');
-      }
-
       const receivedRole = (data.role || '').toLowerCase();
-      if (['student', 'instructor', 'admin'].includes(receivedRole)) {
-        setRole(receivedRole);
-        setLoggedInName(data.name || '');
-        setLoggedInUsername(data.username || username);
-        setStatus('');
-      } else {
-        setStatus('Role missing or unsupported for this user.');
+      const receivedToken = typeof data.token === 'string' ? data.token.trim() : '';
+
+      if (!receivedToken) {
+        throw new Error('Login succeeded, but no session token was returned.');
       }
+
+      if (!['student', 'instructor', 'admin'].includes(receivedRole)) {
+        setStatus('Role missing or unsupported for this user.');
+        return;
+      }
+
+      const nextSession = {
+        token: receivedToken,
+        username: data.username || trimmedUsername,
+        role: receivedRole,
+        name: data.name || '',
+      };
+
+      setSession(nextSession);
+      writeStoredSession(nextSession);
+      setStatus('');
     } catch (error) {
       setStatus(error.message || 'Could not connect to server.');
     } finally {
@@ -58,45 +109,51 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
-    setRole('');
-    setLoggedInName('');
-    setLoggedInUsername('');
+  const handleLogout = (messageOrEvent = 'You have logged out.') => {
+    const message = typeof messageOrEvent === 'string' ? messageOrEvent : 'You have logged out.';
+    setSession(EMPTY_SESSION);
+    clearStoredSession();
     setPassword('');
-    setStatus('You have logged out.');
+    setStatus(message);
   };
 
-  if (role) {
-    if (role === 'student') {
+  if (session.token && session.role) {
+    if (session.role === 'student') {
       return (
         <main className="erp-page erp-page-dashboard">
           <StudentPage
-            displayName={loggedInName}
-            username={loggedInUsername}
+            authToken={session.token}
+            displayName={session.name}
+            username={session.username}
+            onAuthFailure={handleLogout}
             onLogout={handleLogout}
           />
         </main>
       );
     }
 
-    if (role === 'instructor') {
+    if (session.role === 'instructor') {
       return (
         <main className="erp-page erp-page-dashboard">
           <InstructorPage
-            displayName={loggedInName}
-            username={loggedInUsername}
+            authToken={session.token}
+            displayName={session.name}
+            username={session.username}
+            onAuthFailure={handleLogout}
             onLogout={handleLogout}
           />
         </main>
       );
     }
 
-    if (role === 'admin') {
+    if (session.role === 'admin') {
       return (
         <main className="erp-page erp-page-dashboard">
           <AdminPage
-            displayName={loggedInName}
-            username={loggedInUsername}
+            authToken={session.token}
+            displayName={session.name}
+            username={session.username}
+            onAuthFailure={handleLogout}
             onLogout={handleLogout}
           />
         </main>
@@ -107,7 +164,7 @@ function App() {
       <main className="erp-page erp-page-dashboard">
         <section className="login-card">
           <h1>Unsupported Role</h1>
-          <p className="subtitle">Role: {role}</p>
+          <p className="subtitle">Role: {session.role}</p>
           <button type="button" className="logout-btn" onClick={handleLogout}>Logout</button>
         </section>
       </main>

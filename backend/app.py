@@ -92,6 +92,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+set_token_verifier(verify_session_token)
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -185,6 +187,7 @@ async def login(payload: LoginPayload) -> dict[str, str]:
     return {
         "message": "Login successful.",
         "token": token,
+        "token_type": "Bearer",
         "username": user,
         "role": role,
         "name": name,

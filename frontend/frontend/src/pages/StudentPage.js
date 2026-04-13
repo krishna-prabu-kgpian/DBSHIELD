@@ -1,8 +1,7 @@
 import { useState } from 'react';
+import { postJson } from '../api';
 
-const API_BASE_URL = 'http://localhost:8000';
-
-function StudentPage({ displayName, username, onLogout }) {
+function StudentPage({ authToken, displayName, username, onAuthFailure, onLogout }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [courses, setCourses] = useState([]);
   const [enrollCourseCode, setEnrollCourseCode] = useState('');
@@ -15,18 +14,16 @@ function StudentPage({ displayName, username, onLogout }) {
   const readyRemoveActions = [deregisterCourseCode.trim()].filter(Boolean).length;
 
   const postRequest = async (path, payload) => {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    try {
+      return await postJson(path, payload, authToken);
+    } catch (error) {
+      if (error.status === 401) {
+        onAuthFailure?.('Your session expired or is invalid. Please sign in again.');
+        throw error;
+      }
 
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || 'Request failed.');
+      throw error;
     }
-
-    return data;
   };
 
   const searchCourses = async () => {
@@ -39,7 +36,9 @@ function StudentPage({ displayName, username, onLogout }) {
         setStatus('No courses matched your query.');
       }
     } catch (error) {
-      setStatus(error.message || 'Unable to search courses.');
+      if (error.status !== 401) {
+        setStatus(error.message || 'Unable to search courses.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -54,7 +53,9 @@ function StudentPage({ displayName, username, onLogout }) {
       });
       setMyCourses(data.courses || []);
     } catch (error) {
-      setStatus(error.message || 'Unable to load enrolled courses.');
+      if (error.status !== 401) {
+        setStatus(error.message || 'Unable to load enrolled courses.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -69,7 +70,9 @@ function StudentPage({ displayName, username, onLogout }) {
       });
       setGrades(data.grades || []);
     } catch (error) {
-      setStatus(error.message || 'Unable to load grades.');
+      if (error.status !== 401) {
+        setStatus(error.message || 'Unable to load grades.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +94,9 @@ function StudentPage({ displayName, username, onLogout }) {
       setStatus(data.message || 'Enrollment request sent.');
       setEnrollCourseCode(courseCode);
     } catch (error) {
-      setStatus(error.message || 'Unable to submit enrollment request.');
+      if (error.status !== 401) {
+        setStatus(error.message || 'Unable to submit enrollment request.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -112,7 +117,9 @@ function StudentPage({ displayName, username, onLogout }) {
       });
       setStatus(data.message || 'Deregistration request sent.');
     } catch (error) {
-      setStatus(error.message || 'Unable to submit deregistration request.');
+      if (error.status !== 401) {
+        setStatus(error.message || 'Unable to submit deregistration request.');
+      }
     } finally {
       setIsLoading(false);
     }
