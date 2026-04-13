@@ -227,37 +227,4 @@ Heavier inference-style payloads & Query logic can be altered and made more expe
 
 Some additional payloads were also examined to clarify the limits of the current demonstration. PostgreSQL-specific constructs such as \texttt{pg\_sleep()}, \texttt{version()}, or \texttt{information\_schema}-based extraction did not succeed against the current vulnerable login path because the project uses SQLite for this experiment. Similarly, a stacked-query payload attempting to append an \texttt{INSERT} statement raised an execution error rather than succeeding, because the present \texttt{sqlite3.execute()} path does not permit multiple statements in that form. These cases are important because they show that not every SQL injection string is universally portable; however, they do not weaken the main result. The vulnerable system remains exploitable by several practical SQLite-compatible payloads, whereas the shielded system prevents the tested SQL injection attempts while preserving normal authentication behavior.
 
-\section{References Placeholder}
-
-A later version of the report can include references to relevant documentation and defensive security material related to the stack and attack categories used in the project.
-
-\begin{thebibliography}{9}
-
-\bibitem{owasp-top10}
-OWASP Foundation.
-\textit{OWASP Top 10}.
-Available online.
-
-\bibitem{owasp-sqli}
-OWASP Foundation.
-\textit{SQL Injection Prevention Cheat Sheet}.
-Available online.
-
-\bibitem{postgres}
-PostgreSQL Global Development Group.
-\textit{PostgreSQL Documentation}.
-Available online.
-
-\bibitem{fastapi}
-FastAPI.
-\textit{FastAPI Documentation}.
-Available online.
-
-\bibitem{react}
-React.
-\textit{React Documentation}.
-Available online.
-
-\end{thebibliography}
-
 \end{document}

@@ -3,6 +3,7 @@ import './App.css';
 import StudentPage from './pages/StudentPage';
 import InstructorPage from './pages/InstructorPage';
 import AdminPage from './pages/AdminPage';
+import iitkgpLogo from './assets/iitkgp-logo.jpeg';
 
 function App() {
   const [username, setUsername] = useState('');
@@ -115,37 +116,54 @@ function App() {
 
   return (
     <main className="erp-page erp-page-login">
-      <section className="login-card">
-        <h1>Student ERP Login</h1>
-        <p className="subtitle">Sign in to continue to your dashboard.</p>
+      <section className="erp-login-shell">
+        <header className="erp-brand-banner">
+          <div className="erp-brand-mark" aria-hidden="true">
+            <img src={iitkgpLogo} alt="IIT Kharagpur" className="erp-brand-logo" />
+          </div>
+          <div className="erp-brand-copy">
+            <h1 className="erp-brand-title">Indian Institute of Technology Kharagpur</h1>
+            <p className="erp-brand-subtitle">Enterprise Resource Planning</p>
+          </div>
+        </header>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <label htmlFor="username">Username</label>
-          <input
-            id="username"
-            type="text"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            placeholder="e.g. 22CS10001"
-            autoComplete="username"
-          />
+        <section className="login-card">
+          <nav className="erp-login-tabs" aria-label="Authentication options">
+            <button type="button" className="tab-item tab-item-active">Sign In</button>
+          </nav>
 
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Enter password"
-            autoComplete="current-password"
-          />
+          <div className="erp-login-content">
+            <p className="subtitle">Please enter your credentials for signing in to the ERP portal.</p>
 
-          <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+            <form onSubmit={handleSubmit} className="login-form">
+              <label htmlFor="username">Stakeholder Code / Login Id</label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="Stakeholder code / login id"
+                autoComplete="username"
+              />
 
-        {status && <p className="status-message">{status}</p>}
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Password"
+                autoComplete="current-password"
+              />
+
+              <button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Signing in...' : 'Sign In'}
+              </button>
+            </form>
+
+            {status && <p className="status-message">{status}</p>}
+          </div>
+        </section>
       </section>
     </main>
   );

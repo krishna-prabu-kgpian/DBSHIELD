@@ -11,6 +11,8 @@ function StudentPage({ displayName, username, onLogout }) {
   const [grades, setGrades] = useState([]);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const readyAddActions = [searchQuery.trim(), enrollCourseCode.trim()].filter(Boolean).length;
+  const readyRemoveActions = [deregisterCourseCode.trim()].filter(Boolean).length;
 
   const postRequest = async (path, payload) => {
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -130,10 +132,6 @@ function StudentPage({ displayName, username, onLogout }) {
 
       <div className="stat-strip">
         <div className="stat-tile">
-          <span>Catalog Matches</span>
-          <strong>{courses.length}</strong>
-        </div>
-        <div className="stat-tile">
           <span>Enrolled Courses</span>
           <strong>{myCourses.length}</strong>
         </div>
@@ -141,8 +139,17 @@ function StudentPage({ displayName, username, onLogout }) {
           <span>Grade Entries</span>
           <strong>{grades.length}</strong>
         </div>
+        <div className="stat-tile">
+          <span>Ready Adds</span>
+          <strong>{readyAddActions}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Ready Removes</span>
+          <strong>{readyRemoveActions}</strong>
+        </div>
       </div>
 
+      <p className="panel-row-title">Add / Enrollment Actions</p>
       <div className="panel-grid">
         <div className="panel">
           <h3>Search Course Catalog</h3>
@@ -188,20 +195,6 @@ function StudentPage({ displayName, username, onLogout }) {
         </div>
 
         <div className="panel">
-          <h3>Deregister from Course</h3>
-          <p className="tiny-note">Drop a registered course by course code.</p>
-          <input
-            type="text"
-            value={deregisterCourseCode}
-            onChange={(event) => setDeregisterCourseCode(event.target.value)}
-            placeholder="Course code"
-          />
-          <button type="button" onClick={deregisterCourse} disabled={isLoading}>
-            Deregister
-          </button>
-        </div>
-
-        <div className="panel">
           <h3>My Courses</h3>
           <button type="button" onClick={loadMyCourses} disabled={isLoading}>
             Refresh My Courses
@@ -213,6 +206,23 @@ function StudentPage({ displayName, username, onLogout }) {
               </li>
             ))}
           </ul>
+        </div>
+      </div>
+
+      <p className="panel-row-title">Remove / Drop Actions</p>
+      <div className="panel-grid panel-grid-two">
+        <div className="panel">
+          <h3>Deregister from Course</h3>
+          <p className="tiny-note">Drop a registered course by course code.</p>
+          <input
+            type="text"
+            value={deregisterCourseCode}
+            onChange={(event) => setDeregisterCourseCode(event.target.value)}
+            placeholder="Course code"
+          />
+          <button type="button" onClick={deregisterCourse} disabled={isLoading}>
+            Deregister
+          </button>
         </div>
 
         <div className="panel">

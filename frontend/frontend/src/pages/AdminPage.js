@@ -9,10 +9,18 @@ function AdminPage({ displayName, username, onLogout }) {
   const [teacherToDelete, setTeacherToDelete] = useState('');
   const [studentToRemove, setStudentToRemove] = useState('');
   const [courseToDelete, setCourseToDelete] = useState('');
-  const [action, setAction] = useState('');
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [activityLog, setActivityLog] = useState([]);
+  const readyAddActions = [
+    teacherForm.username.trim() && teacherForm.name.trim(),
+    studentForm.username.trim() && studentForm.name.trim(),
+    courseForm.courseCode.trim() && courseForm.title.trim(),
+  ].filter(Boolean).length;
+  const readyRemoveActions = [
+    teacherToDelete.trim(),
+    studentToRemove.trim(),
+    courseToDelete.trim(),
+  ].filter(Boolean).length;
 
   const postRequest = async (path, payload) => {
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -35,21 +43,11 @@ function AdminPage({ displayName, username, onLogout }) {
       const data = await postRequest(path, payload);
       const message = data.message || `${label} completed.`;
       setStatus(message);
-      setActivityLog((prev) => [`${label}: ${message}`, ...prev].slice(0, 10));
     } catch (error) {
       setStatus(error.message || `Unable to ${label.toLowerCase()}.`);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const runAdminAction = async () => {
-    if (!action.trim()) {
-      setStatus('Enter an admin action.');
-      return;
-    }
-
-    await runAction('Run custom action', '/api/admin/action', { query: action });
   };
 
   return (
@@ -66,8 +64,16 @@ function AdminPage({ displayName, username, onLogout }) {
 
       <div className="stat-strip">
         <div className="stat-tile">
-          <span>Recent Admin Actions</span>
-          <strong>{activityLog.length}</strong>
+          <span>Ready Adds</span>
+          <strong>{readyAddActions}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Ready Removes</span>
+          <strong>{readyRemoveActions}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Total Operations</span>
+          <strong>6</strong>
         </div>
         <div className="stat-tile">
           <span>Active Operator</span>
@@ -75,6 +81,7 @@ function AdminPage({ displayName, username, onLogout }) {
         </div>
       </div>
 
+      <p className="panel-row-title">Add Operations</p>
       <div className="panel-grid">
         <div className="panel">
           <h3>Add Teacher</h3>
@@ -106,27 +113,6 @@ function AdminPage({ displayName, username, onLogout }) {
         </div>
 
         <div className="panel">
-          <h3>Delete Teacher</h3>
-          <input
-            type="text"
-            value={teacherToDelete}
-            onChange={(event) => setTeacherToDelete(event.target.value)}
-            placeholder="Teacher username"
-          />
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={() =>
-              runAction('Delete teacher', '/api/admin/delete-teacher', {
-                username: teacherToDelete,
-              })
-            }
-          >
-            Delete Teacher
-          </button>
-        </div>
-
-        <div className="panel">
           <h3>Add Student</h3>
           <input
             type="text"
@@ -152,27 +138,6 @@ function AdminPage({ displayName, username, onLogout }) {
             onClick={() => runAction('Add student', '/api/admin/add-student', studentForm)}
           >
             Add Student
-          </button>
-        </div>
-
-        <div className="panel">
-          <h3>Remove Student</h3>
-          <input
-            type="text"
-            value={studentToRemove}
-            onChange={(event) => setStudentToRemove(event.target.value)}
-            placeholder="Student username"
-          />
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={() =>
-              runAction('Remove student', '/api/admin/remove-student', {
-                username: studentToRemove,
-              })
-            }
-          >
-            Remove Student
           </button>
         </div>
 
@@ -212,7 +177,10 @@ function AdminPage({ displayName, username, onLogout }) {
             Add Course
           </button>
         </div>
+      </div>
 
+      <p className="panel-row-title">Remove Operations</p>
+      <div className="panel-grid">
         <div className="panel">
           <h3>Delete Course</h3>
           <input
@@ -235,26 +203,45 @@ function AdminPage({ displayName, username, onLogout }) {
         </div>
 
         <div className="panel">
-          <h3>Custom Admin Action</h3>
-          <p className="tiny-note">Use this placeholder area for temporary workflows.</p>
+          <h3>Delete Teacher</h3>
           <input
             type="text"
-            value={action}
-            onChange={(event) => setAction(event.target.value)}
-            placeholder="Describe admin action"
+            value={teacherToDelete}
+            onChange={(event) => setTeacherToDelete(event.target.value)}
+            placeholder="Teacher username"
           />
-          <button type="button" onClick={runAdminAction} disabled={isLoading}>
-            Run Action
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() =>
+              runAction('Delete teacher', '/api/admin/delete-teacher', {
+                username: teacherToDelete,
+              })
+            }
+          >
+            Delete Teacher
           </button>
         </div>
 
         <div className="panel">
-          <h3>Recent Activity</h3>
-          <ul className="result-list compact">
-            {activityLog.map((item, index) => (
-              <li key={`${item}-${index}`}>{item}</li>
-            ))}
-          </ul>
+          <h3>Remove Student</h3>
+          <input
+            type="text"
+            value={studentToRemove}
+            onChange={(event) => setStudentToRemove(event.target.value)}
+            placeholder="Student username"
+          />
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() =>
+              runAction('Remove student', '/api/admin/remove-student', {
+                username: studentToRemove,
+              })
+            }
+          >
+            Remove Student
+          </button>
         </div>
       </div>
 

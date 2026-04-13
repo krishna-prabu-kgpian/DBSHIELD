@@ -12,6 +12,15 @@ function InstructorPage({ displayName, username, onLogout }) {
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activityLog, setActivityLog] = useState([]);
+  const readyActions = [
+    courseForm.courseCode.trim() && courseForm.title.trim(),
+    admitForm.studentUsername.trim() && admitForm.courseCode.trim(),
+    removeForm.studentUsername.trim() && removeForm.courseCode.trim(),
+    gradingForm.studentUsername.trim() && gradingForm.courseCode.trim() && gradingForm.grade.trim(),
+    materialForm.courseCode.trim() && materialForm.title.trim() && materialForm.resourceLink.trim(),
+    assignmentForm.courseCode.trim() && assignmentForm.title.trim(),
+  ].filter(Boolean).length;
+  const lastActionLabel = activityLog[0] ? activityLog[0].split(':')[0] : 'None';
 
   const postRequest = async (path, payload) => {
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -58,6 +67,14 @@ function InstructorPage({ displayName, username, onLogout }) {
         <div className="stat-tile">
           <span>Recent Actions</span>
           <strong>{activityLog.length}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Ready Actions</span>
+          <strong>{readyActions}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Last Action</span>
+          <strong>{lastActionLabel}</strong>
         </div>
         <div className="stat-tile">
           <span>Managed By</span>
@@ -259,7 +276,7 @@ function InstructorPage({ displayName, username, onLogout }) {
           </button>
         </div>
 
-        <div className="panel">
+        <div className="panel panel-activity">
           <h3>Recent Activity</h3>
           <ul className="result-list compact">
             {activityLog.map((item, index) => (
