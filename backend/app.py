@@ -101,9 +101,9 @@ ENABLE_DDOS_PROTECTION = True
 # Set this to True to route login through the secure module.
 # Set this to False to keep the intentionally vulnerable SQLi demo path.
 ENABLE_SQLI_PROTECTION = True
-# Set this to True to ENABLE authorization bypass vulnerability (insecure)
-# Set this to False to DISABLE authorization bypass and enforce RBAC (secure)
-ENABLE_AUTHORIZATION_BYPASS = False
+# Set this to True to ENFORCE role-based access control (secure)
+# Set this to False to BYPASS role checks and allow any token (vulnerable)
+ENFORCE_RBAC = True
 # =====================================================================
 
 app = FastAPI(title="DBSHIELD Backend")
@@ -362,10 +362,10 @@ async def login(payload: LoginPayload) -> dict[str, str]:
 def student_search_courses(payload: CourseSearchPayload, request: Request) -> dict[str, list[dict[str, str]]]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["student", "instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Course search")
+        check_role_requirement(role, ["student", "instructor", "admin"], not ENFORCE_RBAC, "Course search")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
-            pass  # Allow access even without proper auth in bypass mode
+        if not ENFORCE_RBAC:
+            pass  # Allow access even with invalid roles in bypass mode
         else:
             raise
     return {"courses": search_courses_placeholder(payload.query)}
@@ -374,12 +374,12 @@ def student_search_courses(payload: CourseSearchPayload, request: Request) -> di
 def student_view_grades(payload: StudentGradePayload, request: Request) -> dict[str, list[dict[str, str]]]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["student", "instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Grade viewing")
+        check_role_requirement(role, ["student", "instructor", "admin"], not ENFORCE_RBAC, "Grade viewing")
         # Data ownership check: students can only view their own grades
         if role == "student":
-            check_data_ownership(username, payload.student_username, ENABLE_AUTHORIZATION_BYPASS, "Grade viewing")
+            check_data_ownership(username, payload.student_username, not ENFORCE_RBAC, "Grade viewing")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass  # Allow access in bypass mode
         else:
             raise
@@ -389,9 +389,9 @@ def student_view_grades(payload: StudentGradePayload, request: Request) -> dict[
 def student_my_courses(payload: StudentGradePayload, request: Request) -> dict[str, list[dict[str, str]]]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["student", "instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Course listing")
+        check_role_requirement(role, ["student", "instructor", "admin"], not ENFORCE_RBAC, "Course listing")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -401,9 +401,9 @@ def student_my_courses(payload: StudentGradePayload, request: Request) -> dict[s
 def student_enroll(payload: StudentCoursePayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["student"], ENABLE_AUTHORIZATION_BYPASS, "Course enrollment")
+        check_role_requirement(role, ["student"], not ENFORCE_RBAC, "Course enrollment")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -413,9 +413,9 @@ def student_enroll(payload: StudentCoursePayload, request: Request) -> dict[str,
 def student_deregister(payload: StudentCoursePayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["student"], ENABLE_AUTHORIZATION_BYPASS, "Course deregistration")
+        check_role_requirement(role, ["student"], not ENFORCE_RBAC, "Course deregistration")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -427,9 +427,9 @@ def student_deregister(payload: StudentCoursePayload, request: Request) -> dict[
 def instructor_admit_student(payload: AdmitStudentPayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Student admission")
+        check_role_requirement(role, ["instructor", "admin"], not ENFORCE_RBAC, "Student admission")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -439,9 +439,9 @@ def instructor_admit_student(payload: AdmitStudentPayload, request: Request) -> 
 def instructor_remove_student(payload: StudentCoursePayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Student removal")
+        check_role_requirement(role, ["instructor", "admin"], not ENFORCE_RBAC, "Student removal")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -451,9 +451,9 @@ def instructor_remove_student(payload: StudentCoursePayload, request: Request) -
 def instructor_assign_grade(payload: GradeStudentPayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Grade assignment")
+        check_role_requirement(role, ["instructor", "admin"], not ENFORCE_RBAC, "Grade assignment")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -463,9 +463,9 @@ def instructor_assign_grade(payload: GradeStudentPayload, request: Request) -> d
 def instructor_create_assignment(payload: AssignmentPayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Assignment creation")
+        check_role_requirement(role, ["instructor", "admin"], not ENFORCE_RBAC, "Assignment creation")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -475,9 +475,9 @@ def instructor_create_assignment(payload: AssignmentPayload, request: Request) -
 def instructor_create_course(payload: CreateCoursePayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Course creation")
+        check_role_requirement(role, ["instructor", "admin"], not ENFORCE_RBAC, "Course creation")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -488,9 +488,9 @@ def instructor_create_course(payload: CreateCoursePayload, request: Request) -> 
 def instructor_add_material(payload: MaterialPayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["instructor", "admin"], ENABLE_AUTHORIZATION_BYPASS, "Material addition")
+        check_role_requirement(role, ["instructor", "admin"], not ENFORCE_RBAC, "Material addition")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -500,9 +500,9 @@ def instructor_add_material(payload: MaterialPayload, request: Request) -> dict[
 def admin_add_teacher(payload: UserProvisionPayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["admin"], ENABLE_AUTHORIZATION_BYPASS, "Teacher addition")
+        check_role_requirement(role, ["admin"], not ENFORCE_RBAC, "Teacher addition")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -512,9 +512,9 @@ def admin_add_teacher(payload: UserProvisionPayload, request: Request) -> dict[s
 def admin_delete_teacher(payload: UsernamePayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["admin"], ENABLE_AUTHORIZATION_BYPASS, "Teacher deletion")
+        check_role_requirement(role, ["admin"], not ENFORCE_RBAC, "Teacher deletion")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -524,9 +524,9 @@ def admin_delete_teacher(payload: UsernamePayload, request: Request) -> dict[str
 def admin_add_student(payload: UserProvisionPayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["admin"], ENABLE_AUTHORIZATION_BYPASS, "Student addition")
+        check_role_requirement(role, ["admin"], not ENFORCE_RBAC, "Student addition")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -536,9 +536,9 @@ def admin_add_student(payload: UserProvisionPayload, request: Request) -> dict[s
 def admin_remove_student(payload: UsernamePayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["admin"], ENABLE_AUTHORIZATION_BYPASS, "Student removal")
+        check_role_requirement(role, ["admin"], not ENFORCE_RBAC, "Student removal")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -548,9 +548,9 @@ def admin_remove_student(payload: UsernamePayload, request: Request) -> dict[str
 def admin_add_course(payload: CourseProvisionPayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["admin"], ENABLE_AUTHORIZATION_BYPASS, "Course addition")
+        check_role_requirement(role, ["admin"], not ENFORCE_RBAC, "Course addition")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -560,9 +560,9 @@ def admin_add_course(payload: CourseProvisionPayload, request: Request) -> dict[
 def admin_delete_course(payload: CourseCodePayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["admin"], ENABLE_AUTHORIZATION_BYPASS, "Course deletion")
+        check_role_requirement(role, ["admin"], not ENFORCE_RBAC, "Course deletion")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
@@ -572,9 +572,9 @@ def admin_delete_course(payload: CourseCodePayload, request: Request) -> dict[st
 def admin_action(payload: CourseSearchPayload, request: Request) -> dict[str, object]:
     try:
         username, role = extract_user_role_from_token(request)
-        check_role_requirement(role, ["admin"], ENABLE_AUTHORIZATION_BYPASS, "Admin action")
+        check_role_requirement(role, ["admin"], not ENFORCE_RBAC, "Admin action")
     except HTTPException:
-        if ENABLE_AUTHORIZATION_BYPASS:
+        if not ENFORCE_RBAC:
             pass
         else:
             raise
