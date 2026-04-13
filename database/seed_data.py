@@ -94,11 +94,10 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 
 	cursor = connection.cursor()
 	cursor.execute(
-		"""
+		f"""
 		INSERT INTO users (username, email, password, role, name, phone)
-		VALUES (?, ?, ?, ?, ?, ?)
-		""",
-		admin_user,
+		VALUES ('{admin_user[0]}', '{admin_user[1]}', '{admin_user[2]}', '{admin_user[3]}', '{admin_user[4]}', '{admin_user[5]}')
+		"""
 	)
 
 	# Add instructor users for testing
@@ -110,11 +109,10 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 	cursor = connection.cursor()
 	for user in instructor_users:
 		cursor.execute(
-			"""
+			f"""
 			INSERT INTO users (username, email, password, role, name, phone)
-			VALUES (?, ?, ?, ?, ?, ?)
-			""",
-			user,
+			VALUES ('{user[0]}', '{user[1]}', '{user[2]}', '{user[3]}', '{user[4]}', '{user[5]}')
+			"""
 		)
 
 	student_users = []
@@ -132,13 +130,13 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 
 	cursor = connection.cursor()
 	for user_batch in batched(student_users, batch_size):
-		cursor.executemany(
-			"""
-			INSERT INTO users (username, email, password, role, name, phone)
-			VALUES (?, ?, ?, ?, ?, ?)
-			""",
-			user_batch,
-		)
+		for user in user_batch:
+			cursor.execute(
+				f"""
+				INSERT INTO users (username, email, password, role, name, phone)
+				VALUES ('{user[0]}', '{user[1]}', '{user[2]}', '{user[3]}', '{user[4]}', '{user[5]}')
+				"""
+			)
 
 	student_rows = []
 	for user_id in range(2, total_users + 1):
@@ -153,13 +151,13 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 
 	cursor = connection.cursor()
 	for student_batch in batched(student_rows, batch_size):
-		cursor.executemany(
-			"""
-			INSERT INTO students (user_id, cgpa, graduation_year)
-			VALUES (?, ?, ?)
-			""",
-			student_batch,
-		)
+		for student in student_batch:
+			cursor.execute(
+				f"""
+				INSERT INTO students (user_id, cgpa, graduation_year)
+				VALUES ({student[0]}, {student[1]}, {student[2]})
+				"""
+			)
 	
 	# Seed Courses
 	print("🎓 Seeding courses...")
@@ -178,13 +176,13 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 		("MA301", "Linear Algebra", "MATH", 1, 3, "Spring 2026"),
 	]
 	
-	cursor.executemany(
-		"""
-		INSERT INTO courses (course_code, course_title, department, instructor_id, credits, semester)
-		VALUES (?, ?, ?, ?, ?, ?)
-		""",
-		courses_data,
-	)
+	for course in courses_data:
+		cursor.execute(
+			f"""
+			INSERT INTO courses (course_code, course_title, department, instructor_id, credits, semester)
+			VALUES ('{course[0]}', '{course[1]}', '{course[2]}', {course[3]}, {course[4]}, '{course[5]}')
+			"""
+		)
 	print(f"✅ Seeded {len(courses_data)} courses")
 	
 	# Seed Enrollments - Enroll students randomly
@@ -209,13 +207,14 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 	
 	cursor = connection.cursor()
 	for enrollment_batch in batched(enrollment_rows, batch_size):
-		cursor.executemany(
-			"""
-			INSERT INTO enrollments (student_id, course_id, status, grade)
-			VALUES (?, ?, ?, ?)
-			""",
-			enrollment_batch,
-		)
+		for enrollment in enrollment_batch:
+			grade_sql = "NULL" if enrollment[3] is None else f"'{enrollment[3]}'"
+			cursor.execute(
+				f"""
+				INSERT INTO enrollments (student_id, course_id, status, grade)
+				VALUES ({enrollment[0]}, {enrollment[1]}, '{enrollment[2]}', {grade_sql})
+				"""
+			)
 	print(f"✅ Seeded {len(enrollment_rows)} enrollments")
 	
 	# Seed Assignments
@@ -244,13 +243,13 @@ def seed_data(connection: sqlite3.Connection, total_users: int, batch_size: int)
 	
 	cursor = connection.cursor()
 	for assignment_batch in batched(assignment_rows, batch_size):
-		cursor.executemany(
-			"""
-			INSERT INTO assignments (course_id, title, description)
-			VALUES (?, ?, ?)
-			""",
-			assignment_batch,
-		)
+		for assignment in assignment_batch:
+			cursor.execute(
+				f"""
+				INSERT INTO assignments (course_id, title, description)
+				VALUES ({assignment[0]}, '{assignment[1]}', '{assignment[2]}')
+				"""
+			)
 	print(f"✅ Seeded {len(assignment_rows)} assignments")
 
 

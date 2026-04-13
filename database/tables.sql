@@ -28,7 +28,6 @@ create table if not exists courses (
 
 create table if not exists enrollments (
     id integer primary key autoincrement,
-    id integer primary key autoincrement,
     student_id integer references users(id) on delete cascade,
     course_id integer references courses(id) on delete cascade,
     enrollment_date timestamp default CURRENT_TIMESTAMP,
@@ -41,10 +40,17 @@ create table if not exists enrollments (
 
 create table if not exists assignments (
     id integer primary key autoincrement,
-    id integer primary key autoincrement,
     course_id integer references courses(id) on delete cascade,
     title text not null,
     description text,
     due_date timestamp,
+    created_date timestamp default CURRENT_TIMESTAMP
+);
+
+create table if not exists course_materials (
+    id integer primary key autoincrement,
+    course_id integer references courses(id) on delete cascade,
+    title text not null,
+    resource_link text not null,
     created_date timestamp default CURRENT_TIMESTAMP
 );
