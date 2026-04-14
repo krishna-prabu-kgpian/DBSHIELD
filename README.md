@@ -67,6 +67,58 @@ Default sample logins after seeding:
 
 Generated student accounts follow the same pattern: `studentN / passN`.
 
+## DOS Attack Demonstration Setup
+
+### 1. Configure the backend for the DoS demo and start the server
+
+Open `backend/app.py` and use these toggles:
+
+- `ENABLE_DDOS_PROTECTION = False` for the unshielded run
+- `ENABLE_DDOS_PROTECTION = True` for the shielded run
+
+For this demo, keep SQLi protection disabled so that `/api/login` uses the intentionally slow `handle_student_login()` path.
+
+- `ENABLE_SQLI_PROTECTION = False`
+
+Restart the backend server after making these changes.
+
+Open `http://localhost:3000` in your browser.
+
+### 2. Start the DDoS simulator
+
+```bash
+cd ddos_attack
+python3 ddos_simulator.py
+```
+
+The simulator targets `http://127.0.0.1:8000/api/login` and repeatedly sends randomized login attempts with spoofed `X-Forwarded-For` headers.
+
+### 3. Observe the unshielded behavior
+
+With `ENABLE_DDOS_PROTECTION = False`:
+
+- the attacker requests are processed by the delayed login handler
+- the simulator output will mainly show `401` responses, since invalid credentials still reach the login path
+- the frontend login experience becomes noticeably slower while the flood is running
+
+This demonstrates that attacker traffic is consuming backend work even though the attacker is not successfully logging in.
+
+### 4. Observe the shielded behavior
+
+Restart the backend after changing:
+
+- `ENABLE_DDOS_PROTECTION = True`
+
+Run the same simulator again.
+
+With protection enabled:
+
+- spoofed requests are rejected in middleware before the expensive login code runs
+- the simulator output should mainly show `403` responses in the current local setup
+- normal browser requests should remain much smoother than in the unshielded run
+
+This demonstrates that the protection works by blocking spoofed flood traffic early enough to preserve availability for legitimate users.
+
 ## Testing Authorization Bypass
 
 *** All the given commands are for Linux based systems
@@ -74,21 +126,23 @@ Generated student accounts follow the same pattern: `studentN / passN`.
 Set `ENABLE_AUTH_BYPASS_PROTECTION = False` in `backend/app.py` to demonstrate the vulnerable authorization-bypass behavior.
 Set it back to `True` to verify that the same requests are blocked by server-side checks.
 
-### 1. For Login :
+## Authorization Bypass Setup
+
+### 10. For Login :
 ```
 TOKEN=$(curl -s -X POST http://localhost:8000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"student1","password":"pass1"}' | jq -r '.token')
 ```
 
-### 2. Admin Action without token
+### 11. Admin Action without token
 ```
 curl -s -X POST http://localhost:8000/api/admin/action \
   -H "Content-Type: application/json" \
   -d '{"query":"SELECT username FROM users LIMIT 1"}' | jq .
 ```
 
-### 3. Admin Action with token
+### 12. Admin Action with token
 ```
 curl -s -X POST http://localhost:8000/api/admin/action \
   -H "Authorization: Bearer $TOKEN" \
@@ -96,7 +150,7 @@ curl -s -X POST http://localhost:8000/api/admin/action \
   -d '{"query":"SELECT username FROM users LIMIT 1"}' | jq .
 ```
 
-### 4. For Unauthorized grade viewing of another students :
+### 13. For Unauthorized grade viewing of another students :
 ```
 curl -X POST http://localhost:8000/api/student/view-grades \
   -H "Content-Type: application/json" \
@@ -104,31 +158,7 @@ curl -X POST http://localhost:8000/api/student/view-grades \
   -d '{"student_username":"student2"}' | jq .
 ```
 
-### 5. Student token used on instructor-only admit endpoint
-```
-curl -s -X POST http://localhost:8000/api/instructor/admit-student \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"student_username":"student2","course_code":"CS101"}' | jq .
-```
-
-### 6. Student token used on instructor-only grade assignment
-```
-curl -s -X POST http://localhost:8000/api/instructor/assign-grade \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"student_username":"student2","course_code":"CS101","grade":"F"}' | jq .
-```
-
-### 7. Student token used on instructor-only assignment creation
-```
-curl -s -X POST http://localhost:8000/api/instructor/create-assignment \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"course_code":"CS101","title":"Unauthorized Assignment"}' | jq .
-```
-
-### 8. Student token used on admin-only add-student endpoint
+### 14. Add student
 ```
 curl -s -X POST http://localhost:8000/api/admin/add-student \
   -H "Authorization: Bearer $TOKEN" \
