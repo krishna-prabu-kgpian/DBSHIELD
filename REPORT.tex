@@ -329,22 +329,20 @@ This comparison highlights the core lesson of the authorization-bypass study: au
 \paragraph{Testing procedure.}
 For controlled testing, the variable \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION} in the backend is switched between \texttt{False} (unshielded authorization behavior) and \texttt{True} (shielded authorization behavior). A typical test first logs in as a student to obtain a bearer token and then reuses that token against an endpoint that should require a stronger role. For example:
 
-\begin{quote}
-\small\ttfamily
-TOKEN=\$(curl -s -X POST http://localhost:8000/api/login \textbackslash{}\\
-\hspace*{1.6em}-H "Content-Type: application/json" \textbackslash{}\\
-\hspace*{1.6em}-d '\{"username":"student1","password":"pass1"\}' | jq -r '.token')
-\end{quote}
+\begin{verbatim}
+TOKEN=$(curl -s -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"student1","password":"pass1"}' | jq -r '.token')
+\end{verbatim}
 
 The expected outcome of this login request is a successful response containing a token together with the authenticated \texttt{username} and \texttt{role}. That token can then be used to test a protected admin endpoint:
 
-\begin{quote}
-\small\ttfamily
-curl -s -X POST http://localhost:8000/api/admin/action \textbackslash{}\\
-\hspace*{1.6em}-H "Authorization: Bearer \$TOKEN" \textbackslash{}\\
-\hspace*{1.6em}-H "Content-Type: application/json" \textbackslash{}\\
-\hspace*{1.6em}-d '\{"query":"SELECT username FROM users LIMIT 1"\}' | jq .
-\end{quote}
+\begin{verbatim}
+curl -s -X POST http://localhost:8000/api/admin/action \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"SELECT username FROM users LIMIT 1"}' | jq .
+\end{verbatim}
 
 When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = False}, the expected output is a successful response such as \texttt{\{"message":"Admin action executed.", ...\}}, even though the token belongs to a student. When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = True}, the same request is expected to fail with a controlled authorization error such as HTTP 403 and an \texttt{Access denied} message. A second useful test is to call \texttt{/api/student/view-grades} with another student's username while logged in as \texttt{student1}; the vulnerable mode returns another student's data, whereas the shielded mode returns a denial based on ownership checking.
 
