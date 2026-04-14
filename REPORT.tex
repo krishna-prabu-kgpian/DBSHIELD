@@ -299,6 +299,21 @@ Shielded
 \end{tabular}
 \end{table}
 
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{images/ddos_false.png}
+    \caption{Unshielded login endpoint during the spoofed request flood. With \texttt{ENABLE\_DDOS\_PROTECTION = False}, attacker requests still reach the delayed authentication path and are rejected only after backend work is spent, producing many HTTP 401 responses and noticeably degrading responsiveness for legitimate users.}
+    \label{fig:dos_unshielded}
+\end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{images/ddos_true.png}
+    \caption{Shielded login endpoint under the same attack. With \texttt{ENABLE\_DDOS\_PROTECTION = True}, spoofed requests carrying untrusted \texttt{X-Forwarded-For} headers are blocked early in middleware, producing HTTP 403 responses, while legitimate browser requests continue to succeed.}
+    \label{fig:dos_shielded}
+\end{figure}
+
+
 \section{Authorization Bypass}
 
 \subsection{Study}
