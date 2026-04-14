@@ -5,8 +5,13 @@ Queries real data from the SQLite database instead of using hardcoded values.
 
 import sqlite3
 from pathlib import Path
-from dotenv import load_dotenv
 import os
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency in local demos
+    def load_dotenv(*args, **kwargs):
+        return False
 
 # Load environment variables
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -302,5 +307,4 @@ def execute_admin_action_db(action: str) -> dict:
         return {"success": False, "message": f"Admin action error: {str(e)}"}
     finally:
         conn.close()
-
 

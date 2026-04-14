@@ -6,7 +6,11 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 
-from dotenv import load_dotenv
+try:
+	from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency in local demos
+	def load_dotenv(*args, **kwargs):
+		return False
 
 BASE_DIR = Path(__file__).resolve().parent
 ENV_PATH = BASE_DIR.parent / ".env"

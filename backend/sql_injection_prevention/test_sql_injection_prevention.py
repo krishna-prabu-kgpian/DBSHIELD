@@ -10,7 +10,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from database import handle_student_login, initialize_database
-from sql_injection_prevention.secure_auth import handle_student_login_secure
+from sql_injection_prevention.secure_auth import authenticate_login_attempt, handle_student_login_secure
 
 
 WORKING_CREDENTIALS = ("admin", "admin123")
@@ -87,6 +87,22 @@ class TestSQLInjectionDefense(unittest.TestCase):
         result = handle_student_login_secure(*WORKING_CREDENTIALS)
         self.assertIsNotNone(result)
         self.assertEqual(result["username"], "admin")
+
+    def test_safe_login_reports_missing_username_before_password_checks(self):
+        attempt = authenticate_login_attempt("missing-user", "' OR 1=1 --", detect_sql_injection=True)
+        self.assertEqual(attempt.status, "username_not_found")
+
+    def test_safe_login_flags_password_sql_injection_for_existing_user(self):
+        attempt = authenticate_login_attempt("admin", "' OR 1=1 --", detect_sql_injection=True)
+        self.assertEqual(attempt.status, "sql_injection_detected")
+
+    def test_safe_login_reports_plain_invalid_passwords(self):
+        attempt = authenticate_login_attempt("admin", "wrong-password", detect_sql_injection=True)
+        self.assertEqual(attempt.status, "invalid_password")
+
+    def test_safe_login_treats_quote_only_passwords_as_invalid_credentials(self):
+        attempt = authenticate_login_attempt("admin", "quo'ted", detect_sql_injection=True)
+        self.assertEqual(attempt.status, "invalid_password")
 
     def test_documented_working_payloads_are_blocked_by_secure_login(self):
         for case_name, username, password in DOCUMENTED_WORKING_PAYLOADS:

@@ -122,5 +122,8 @@ class AppDDoSProtection:
         username: str,
         password: str,
     ) -> Any:
+        if not self.settings.enabled:
+            return await run_in_threadpool(login_handler, username, password)
+
         async with self._login_semaphore:
             return await run_in_threadpool(login_handler, username, password)

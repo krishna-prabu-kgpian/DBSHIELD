@@ -2,7 +2,11 @@ import os
 from pathlib import Path
 import sqlite3
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency in local demos
+    def load_dotenv(*args, **kwargs):
+        return False
 
 
 BASE_DIR = Path(__file__).resolve().parent

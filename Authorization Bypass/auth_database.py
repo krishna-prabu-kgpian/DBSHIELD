@@ -5,8 +5,6 @@ Implements token-based authentication to prevent header spoofing.
 
 import sys
 from pathlib import Path
-import sqlite3
-import hashlib
 import secrets
 
 # Add parent directory to path so we can import from backend
@@ -14,7 +12,8 @@ backend_dir = Path(__file__).resolve().parent.parent / "backend"
 sys.path.insert(0, str(backend_dir))
 
 # Import the original database connection
-from database import connect_to_db, handle_student_login
+from database import connect_to_db
+from sql_injection_prevention.secure_auth import authenticate_login_attempt
 
 # Simple in-memory token store (in production, use database)
 # Format: {token: {username, role, created_at}}
@@ -26,7 +25,8 @@ def authenticate_user(username: str, password: str) -> dict:
     Authenticate user against the real database.
     Returns user data with role, or None if authentication fails.
     """
-    return handle_student_login(username, password)
+    attempt = authenticate_login_attempt(username, password, detect_sql_injection=True)
+    return attempt.user if attempt.status == "success" else None
 
 
 def create_session_token(username: str, role: str) -> str:
@@ -74,21 +74,18 @@ def verify_user_role(username: str, claimed_role: str) -> bool:
         True if user exists with that exact role, False otherwise
     """
     try:
-        # Try to connect to SQLite database first (Authorization Bypass demo)
-        db_path = Path(__file__).resolve().parent.parent / "database" / "dbshield.sqlite3"
-        if db_path.exists():
-            conn = sqlite3.connect(str(db_path))
+        conn = connect_to_db()
+        try:
             cursor = conn.cursor()
-            cursor.execute(
-                f"SELECT role FROM users WHERE username = '{username}'"
-            )
+            cursor.execute("SELECT role FROM users WHERE username = ?", (username,))
             result = cursor.fetchone()
+        finally:
             conn.close()
-            
-            if result:
-                actual_role = result[0].lower()
-                return actual_role == claimed_role.lower()
-            return False
+
+        if result:
+            actual_role = str(result["role"]).lower()
+            return actual_role == claimed_role.lower()
+        return False
     except Exception as e:
         print(f"Error verifying user role: {e}")
         return False
