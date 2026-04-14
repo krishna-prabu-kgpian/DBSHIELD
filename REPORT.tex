@@ -316,8 +316,8 @@ For controlled testing, the variable \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION} i
 
 \begin{quote}
 \small\ttfamily
-TOKEN=\$(curl -s -X POST http://localhost:8000/api/login \\
-\hspace*{1.6em}-H "Content-Type: application/json" \\
+TOKEN=\$(curl -s -X POST http://localhost:8000/api/login \textbackslash{}\\
+\hspace*{1.6em}-H "Content-Type: application/json" \textbackslash{}\\
 \hspace*{1.6em}-d '\{"username":"student1","password":"pass1"\}' | jq -r '.token')
 \end{quote}
 
@@ -325,9 +325,9 @@ The expected outcome of this login request is a successful response containing a
 
 \begin{quote}
 \small\ttfamily
-curl -s -X POST http://localhost:8000/api/admin/action \\
-\hspace*{1.6em}-H "Authorization: Bearer \$TOKEN" \\
-\hspace*{1.6em}-H "Content-Type: application/json" \\
+curl -s -X POST http://localhost:8000/api/admin/action \textbackslash{}\\
+\hspace*{1.6em}-H "Authorization: Bearer \$TOKEN" \textbackslash{}\\
+\hspace*{1.6em}-H "Content-Type: application/json" \textbackslash{}\\
 \hspace*{1.6em}-d '\{"query":"SELECT username FROM users LIMIT 1"\}' | jq .
 \end{quote}
 
