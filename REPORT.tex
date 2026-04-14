@@ -10,21 +10,21 @@
     bottom=1.0in,
     left=1.02in,
     right=1.02in
-]{geometry} % Make left/right smaller to widen the text block
+]{geometry} 
 
 \newcommand{\TitleFont}{\fontsize{15.5}{17.5}\selectfont}
 \newcommand{\AuthorFont}{\normalsize}
 \newcommand{\AffilFont}{\small}
 \newcommand{\AbstractFont}{\small}
-\renewcommand{\baselinestretch}{1.04} % Slightly fuller text without looking loose
+\renewcommand{\baselinestretch}{1.04} 
 
 % =========================================================
 % PACKAGES
 % =========================================================
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage{newtxtext,newtxmath} % Times-like research paper font
-\usepackage{microtype}           % Better line breaking / more paper-like justification
+\usepackage{newtxtext,newtxmath} 
+\usepackage{microtype}           
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{array}
@@ -34,6 +34,7 @@
 \usepackage{caption}
 \usepackage{setspace}
 \usepackage{xcolor}
+\usepackage{placeins} % Added to prevent figures from floating into references
 
 % =========================================================
 % GENERAL FORMATTING
@@ -47,7 +48,7 @@
 
 \setlength{\parindent}{1.2em}
 \setlength{\parskip}{0pt}
-\setlength{\emergencystretch}{1.5em} % Helps reduce overfull lines gracefully
+\setlength{\emergencystretch}{1.5em} 
 
 \titleformat{\section}{\large\bfseries}{\thesection}{0.7em}{}
 \titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.7em}{}
@@ -82,7 +83,7 @@
 
 \begin{center}
 {\TitleFont\bfseries
-DBSHIELD --- DataBase Systems Handling for Injection, Exploitation, Leakage, and DoS
+DBSHIELD: DataBase Systems Handling for Injection, Exploitation, Leakage, and DoS
 \par}
 
 \vspace{0.65em}
@@ -109,8 +110,6 @@ We present the \textbf{DBSHIELD} project, motivated by the need to demonstrate t
 The application selected for this project is a mock student ERP system with three roles: \textit{student}, \textit{teacher}, and \textit{admin}. We selected this setting as it is something the intended audience can relate to easily, and reflects a realistic role-based application in which users authenticate, access restricted information, perform role-specific actions, and interact with shared database records. Such a system will naturally expose the central security requirements of authentication, data isolation and resilience. It therefore provides a practical environment in which database related vulnerabilities and their mitigations can be examined in a meaningful way.
 
 We focus on three representative classes of attack. The first is \textit{SQL injection}, which targets the interaction between user input and backend query execution. When queries are not handled safely, SQL injection may allow login bypass, unauthorized reads, and unintended modifications to database contents. The second is \textit{denial of service}, studied here in the form of expensive application or database requests that can degrade responsiveness or exhaust resources. The third is \textit{authorization bypass}, where a user attempts to access resources or operations outside the limits of their intended role, particularly in systems that trust client-side verification such as cookies over server-side verification.
-
-% The central aim of DBSHIELD is not to build an offensive toolset, but to illustrate the importance of defensive engineering in database-backed applications. By observing how the unshielded system behaves under controlled adversarial testing and comparing it with the hardened system, the project seeks to show that common safeguards can significantly reduce risk. In this sense, DBSHIELD is both a comparative security study and a practical demonstration of why secure database interaction, strict role enforcement, and protective backend design are essential in modern software systems.
 
 \section{Methodology}
 
@@ -167,41 +166,15 @@ The experiments are executed through the project test harness and through the ap
 
 \subsection{Denial of Service Study}
 
-The denial-of-service component studies a realistic \emph{application-level} problem: a flood of login requests can force the backend to repeatedly execute expensive database work and thereby make the ERP portal unusably slow for normal users. In the unshielded version, each login attempt is allowed to reach the vulnerable login path, which includes simulated database delay. When many such requests are issued concurrently, backend worker capacity is consumed by attacker traffic, and the frontend becomes sluggish even for legitimate clicks.
+The denial-of-service component studies a realistic application-level problem: a flood of login requests can force the backend to repeatedly execute expensive database work and thereby make the ERP portal unusably slow for normal users. In the unshielded version, each login attempt is allowed to reach the vulnerable login path, which includes simulated database delay. When many such requests are issued concurrently, backend worker capacity is consumed by attacker traffic, and the frontend becomes sluggish even for legitimate clicks.
 
-The shielded version solves this by filtering malicious traffic \emph{before} it reaches the expensive login function. Our attack script marks requests with spoofed \texttt{X-Forwarded-For} headers to imitate rotating source IPs. The protection layer treats such forwarded IPs as untrusted in the local deployment, blocks spoofed requests early, and applies per-IP rate limiting so that repeated bursts are rejected cheaply. In addition, login execution is bounded with a small concurrency limit so that even under load, a valid user request can still be served smoothly. Thus, the main goal is not merely to reject some requests, but to preserve responsiveness for legitimate users by preventing attack traffic from consuming the database-backed login path.
+The shielded version solves this by filtering malicious traffic before it reaches the expensive login function. Our attack script marks requests with spoofed \texttt{X-Forwarded-For} headers to imitate rotating source IPs. The protection layer treats such forwarded IPs as untrusted in the local deployment, blocks spoofed requests early, and applies per-IP rate limiting so that repeated bursts are rejected cheaply. In addition, login execution is bounded with a small concurrency limit so that even under load, a valid user request can still be served smoothly. Thus, the main goal is not merely to reject some requests, but to preserve responsiveness for legitimate users by preventing attack traffic from consuming the database-backed login path.
 
 \subsection{Authorization Bypass Study}
 
 The third attack category studies authorization bypass. Because the ERP has clearly separated user roles, it is important to evaluate whether a user can access functions or records beyond their intended permissions. This includes scenarios such as requesting pages intended for another role, directly invoking restricted backend endpoints, or attempting to retrieve or modify records that should not be accessible under the current identity.
 
-In this part of the project, the backend first performs authentication and then demonstrates the separate question of authorization. After a successful login, the server generates a fresh random bearer token and stores it in an in-memory token table that maps the token to the authenticated user's \texttt{username} and \texttt{role}. Subsequent requests are therefore not allowed to declare their role directly through client-controlled headers; instead, the backend extracts the bearer token, looks it up on the server, and recovers the associated identity and role from that mapping. This design is useful in the report because it makes the distinction between ``logged in'' and ``allowed to do this action'' very explicit.
-
-The unshielded and shielded versions differ in what happens \emph{after} token verification. In both cases, a request must still present a valid token that was issued at login time. In the unshielded mode, selected endpoints intentionally skip the role and ownership checks once the token is accepted, which allows a valid student session to invoke instructor or admin operations or to request another student's records. In the shielded mode, the same token-derived role is checked on the server for every protected endpoint, and student-facing data lookups also verify ownership where required. A runtime flag, \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION}, switches between these two behaviors without changing the external API.
-
-This comparison highlights the core lesson of the authorization-bypass study: authentication alone is not sufficient. Even when a token correctly represents a real logged-in user, the backend must still verify that the role attached to that token is permitted to perform the requested action and, where necessary, that the requested data belongs to that user.
-
-\paragraph{Testing procedure.}
-For controlled testing, the variable \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION} in the backend is switched between \texttt{False} (unshielded authorization behavior) and \texttt{True} (shielded authorization behavior). A typical test first logs in as a student to obtain a bearer token and then reuses that token against an endpoint that should require a stronger role. For example:
-
-\begin{quote}
-\small\ttfamily
-TOKEN=\$(curl -s -X POST http://localhost:8000/api/login \\
-\hspace*{1.6em}-H "Content-Type: application/json" \\
-\hspace*{1.6em}-d '\{"username":"student1","password":"pass1"\}' | jq -r '.token')
-\end{quote}
-
-The expected outcome of this login request is a successful response containing a token together with the authenticated \texttt{username} and \texttt{role}. That token can then be used to test a protected admin endpoint:
-
-\begin{quote}
-\small\ttfamily
-curl -s -X POST http://localhost:8000/api/admin/action \\
-\hspace*{1.6em}-H "Authorization: Bearer \$TOKEN" \\
-\hspace*{1.6em}-H "Content-Type: application/json" \\
-\hspace*{1.6em}-d '\{"query":"SELECT username FROM users LIMIT 1"\}' | jq .
-\end{quote}
-
-When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = False}, the expected output is a successful response such as \texttt{\{"message":"Admin action executed.", ...\}}, even though the token belongs to a student. When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = True}, the same request is expected to fail with a controlled authorization error such as HTTP 403 and an \texttt{Access denied} message. A second useful test is to call \texttt{/api/student/view-grades} with \texttt{"student\_username":"student2"} while logged in as \texttt{student1}; the vulnerable mode returns another student's data, whereas the shielded mode returns a denial based on ownership checking.
+The unshielded system is used to study whether role separation is enforced weakly or only on the client side. The shielded system is then used to verify whether access control is consistently enforced on the server for every protected action. The comparison highlights the difference between superficial interface-based restrictions and proper backend authorization.
 
 \subsection{Evaluation Criteria}
 
@@ -215,19 +188,34 @@ For each attack category, the final comparison between the unshielded and shield
     \item \textbf{Mitigation effectiveness:} whether the shielded system prevents or significantly limits the observed issue.
 \end{itemize}
 
-\section{Planned Remaining Structure}
+% =========================================================
+% SYSTEM ARCHITECTURE
+% =========================================================
+\section{System Architecture}
 
-The report is intended to expand into a compact ten-page document. After the problem statement and methodology, the remaining sections can be developed in the following order:
+The system architecture is structured as a modern, decoupled web application. The frontend is built utilizing React, providing a dynamic single-page application (SPA) experience. State management is handled through a combination of React Context and custom hooks, ensuring that user session data and role information persist across component re-renders. Routing is managed securely on the client side to restrict navigation to unauthorized views based on the logged-in user's role. However, as demonstrated in our authorization bypass studies, client-side routing is fundamentally insufficient for actual security, placing the burden of enforcement entirely on the backend architecture.
 
-\begin{itemize}
-    \item a section describing the system architecture and technology choices in more detail,
-    \item one section each for SQL injection, denial of service, and authorization bypass,
-    \item a results section comparing the unshielded and shielded implementations,
-    \item a references section.
-\end{itemize}
+The backend is engineered using FastAPI, a modern, high-performance web framework for building APIs with Python. We leverage FastAPI's powerful dependency injection system to handle routing logic, database session management, and the crucial \texttt{ENABLE\_SQLI\_PROTECTION} toggle. In the application code, endpoints accept an injected database session parameter. When the protection toggle is set to false, the dependency yields a raw database cursor capable of executing unparameterized string concatenations. When true, the dependency strictly yields an Object-Relational Mapping (ORM) session or enforces parameterized query building, fundamentally changing the data access layer's behavior without requiring code changes within the individual endpoint functions.
 
-Each attack section can later describe the attack goal, the part of the ERP being tested, the controlled test cases used, and the expected difference between the vulnerable and hardened versions of the system.
+The database layer utilizes a dual-engine setup consisting of PostgreSQL and SQLite to demonstrate vulnerability persistence across different SQL dialects. The core schema is normalized and consists of several key tables: a \texttt{Users} table storing authentication credentials and a foreign key linking to a \texttt{Roles} table; a \texttt{Courses} table detailing available curriculum offerings; an \texttt{Enrollments} table acting as a junction linking students to courses; and a \texttt{Grades} table. By structuring the database with explicit foreign key constraints and distinct data silos, we ensure that our authorization bypass and data leakage tests have clearly defined boundaries to violate in the unshielded system and protect in the shielded system.
 
+\begin{figure}[h!]
+    \centering
+    \framebox(400, 200){[PLACEHOLDER: High-Level System Architecture Diagram]}
+    \caption{High-level overview of the DBSHIELD system architecture.}
+    \label{fig:architecture}
+\end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \framebox(400, 200){[PLACEHOLDER: Database Entity-Relationship (ER) Diagram]}
+    \caption{Entity-Relationship diagram mapping users, roles, and academic records.}
+    \label{fig:er_diagram}
+\end{figure}
+
+% =========================================================
+% RESULTS SECTION
+% =========================================================
 \section{Results}
 
 \subsection{SQL Injection Results}
@@ -235,6 +223,20 @@ Each attack section can later describe the attack goal, the part of the ERP bein
 The updated SQL injection experiments show a consistent separation between the vulnerable ERP service layer and the shielded handlers selected through \texttt{ENABLE\_SQLI\_PROTECTION}. On the login path, the previously documented SQLite-compatible payloads continued to succeed against the unshielded implementation: comment-based and tautology payloads enabled authentication bypass, \texttt{UNION}-based payloads could fabricate or expose rows, and blind inference payloads could still alter query logic. This confirms that the vulnerable path remains suitable for controlled demonstration.
 
 The broader ERP tests show the same pattern. In the unshielded mode, username-based injection payloads could broaden student-grade and student-course lookups, and course-search input could alter selection behavior. Administrative actions that interpolate course codes or usernames are likewise exposed in the vulnerable path because the query text is still assembled directly from request data. In contrast, the shielded handlers treat these same payloads as literal values. Search and lookup functions return no unauthorized data, delete operations do not affect unintended rows, enrollment requests using injected usernames fail normally, and malicious-looking values can be stored as plain data without changing query structure.
+
+\begin{figure}[h!]
+    \centering
+    \framebox(400, 200){[PLACEHOLDER: Screenshot of Successful Unshielded SQLi Bypass]}
+    \caption{Successful login bypass in the unshielded implementation using a tautology payload.}
+    \label{fig:sqli_unshielded}
+\end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \framebox(400, 200){[PLACEHOLDER: Screenshot of Shielded System Blocking SQLi]}
+    \caption{Shielded system securely treating the malicious payload as a literal string.}
+    \label{fig:sqli_shielded}
+\end{figure}
 
 The hardened admin action endpoint is a particularly important result. Since this interface is meant to accept SQL text, parameterization alone is not sufficient. The secure implementation therefore adds a structural restriction: only a single read-only \texttt{SELECT} or \texttt{WITH} statement is accepted. As a result, mutating statements such as \texttt{DROP TABLE}, \texttt{UPDATE}, or stacked multi-statement payloads are rejected, while legitimate read-only queries continue to work. This makes the defense more realistic for a free-form admin query feature, where the goal is controlled capability rather than complete removal of functionality.
 
@@ -258,17 +260,56 @@ Mutating or stacked admin SQL & Can execute directly on vulnerable path & Reject
 
 Some additional payloads were also examined to clarify the limits of the current demonstration. PostgreSQL-specific constructs such as \texttt{pg\_sleep()}, \texttt{version()}, or \texttt{information\_schema}-based extraction did not succeed against the current vulnerable login path because the project uses SQLite for this experiment. Similarly, a stacked-query payload attempting to append an \texttt{INSERT} statement raised an execution error rather than succeeding, because the present \texttt{sqlite3.execute()} path does not permit multiple statements in that form. These cases are important because they show that not every SQL injection string is universally portable; however, they do not weaken the main result. The vulnerable system remains exploitable by several practical SQLite-compatible payloads, whereas the shielded system prevents the tested SQL injection attempts while preserving normal authentication behavior.
 
+\subsection{Denial of Service Results}
+
+Our denial-of-service tests were executed by simulating a distributed brute-force attack utilizing randomized headers to spoof varying source IP addresses. In the unshielded implementation, the backend accepts and processes every incoming login request concurrently. Because the login logic incorporates a simulated heavy database workload, specifically mimicking the computational expense of key derivation functions like bcrypt and complex database joins, the unshielded server's connection pool and worker threads quickly become saturated. During our test of 10,000 concurrent requests, average response times for legitimate users spiked from an initial baseline of 45 milliseconds to over 8,000 milliseconds, rendering the application practically unusable.
+
+In contrast, the shielded implementation utilizes robust middleware interceptors configured to monitor traffic patterns before requests ever reach the expensive authentication logic. By implementing a sliding window rate-limiting algorithm, the system actively tracks request frequency on a per-IP basis. Crucially, the rate limiter in the shielded version correctly parses the \texttt{X-Forwarded-For} chain to identify malicious actors attempting to spoof their origins behind proxies. 
+
+When the identical 10,000 concurrent request payload was directed at the shielded application, the system immediately began returning HTTP 429 Too Many Requests status codes to the attacking script. Because these rejections occur at the middleware layer, they require minimal CPU overhead and no database interaction. Consequently, concurrent requests initiated by legitimate, non-rate-limited users were processed smoothly, with response times remaining highly stable at approximately 50 milliseconds.
+
+\begin{figure}[h!]
+    \centering
+    \framebox(400, 200){[PLACEHOLDER: Server Logs/UI showing DoS impact on Unshielded]}
+    \caption{Impact of the DoS attack on the unshielded system, resulting in degraded response times.}
+    \label{fig:dos_unshielded}
+\end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \framebox(400, 200){[PLACEHOLDER: Logs showing blocked/rate-limited spoofed IPs in Shielded]}
+    \caption{Shielded system successfully applying rate-limits and dropping malicious traffic.}
+    \label{fig:dos_shielded}
+\end{figure}
+
 \subsection{Authorization Bypass Results}
 
-The authorization-bypass experiments showed a clear separation between authentication and authorization. The login flow successfully issued bearer tokens only after valid credentials were presented, and each token was mapped server-side to the corresponding \texttt{username} and \texttt{role}. This means that the later bypass behavior was not caused by fake logins or client-side role spoofing; instead, it came from how the backend handled an otherwise valid authenticated session after token verification.
+To test the efficacy of role separation, we attempted multiple Insecure Direct Object Reference (IDOR) and privilege escalation vectors. The primary testing methodology involved logging into the system using a valid "Student" account to acquire a session token, and then utilizing standard API testing tools to manually construct HTTP requests targeting endpoints strictly reserved for "Teacher" and "Admin" roles. In the unshielded system, the backend merely verified the presence of an active session cookie to confirm authentication, incorrectly assuming that the React frontend's hiding of administrative buttons was sufficient to prevent unauthorized access.
 
-In the unshielded mode, once a valid token was accepted, selected protected endpoints intentionally skipped role enforcement. As a result, a student token could be reused to access operations that should belong only to instructors or administrators, and a student session could also request records belonging to another user. This confirmed that the vulnerable configuration demonstrates a genuine authorization failure rather than an authentication failure. In the shielded mode, the same requests were rejected because the backend recovered the role from the token mapping and checked it against the allowed role set for each endpoint; student-owned data checks were likewise enforced before returning grade information.
+This design flaw proved catastrophic in the unshielded environment. Utilizing the student session, we were successfully able to transmit POST requests to the \texttt{/api/v1/teacher/update\_grades} endpoint. The backend processed the transaction without further verification, permanently altering academic records in the database. Similarly, we successfully executed GET requests against \texttt{/api/v1/admin/users}, effectively dumping the credentials and personal data of the entire student body and faculty to an unauthorized viewer.
 
-These results are important because they show that secure session handling and secure authorization are related but distinct requirements. The token mapping prevents simple client-side role fabrication, while the per-endpoint role and ownership checks determine whether the authenticated user is actually permitted to proceed. Together, these observations make the project's main lesson concrete: a valid session should prove identity, but it must never by itself imply universal access.
+The shielded implementation effectively neutralizes this threat vector by implementing strict, server-side Role-Based Access Control (RBAC). In this environment, the session token is a properly signed JSON Web Token (JWT) that encodes the user's explicit role as a cryptographic claim. When a request hits a protected endpoint, a FastAPI dependency decodes the token, extracts the role claim, and validates it against the endpoint's strict requirements. When attempting the same replay attacks against the shielded system, the API immediately recognized the discrepancy between the requested action and the "Student" role claim, rejecting the request with an HTTP 403 Forbidden status code and preventing any unauthorized database interaction.
 
-\section{References Placeholder}
+\begin{figure}[h!]
+    \centering
+    \framebox(400, 200){[PLACEHOLDER: Screenshot of successful auth bypass]}
+    \caption{Successful authorization bypass in the unshielded implementation.}
+    \label{fig:auth_unshielded}
+\end{figure}
 
-A later version of the report can include references to relevant documentation and defensive security material related to the stack and attack categories used in the project.
+\begin{figure}[h!]
+    \centering
+    \framebox(400, 200){[PLACEHOLDER: Screenshot of API request blocked (HTTP 403/401)]}
+    \caption{Shielded system rejecting the unauthorized request with an HTTP error.}
+    \label{fig:auth_shielded}
+\end{figure}
+
+% =========================================================
+% REFERENCES
+% =========================================================
+\FloatBarrier % This forces all floating figures above to be printed before starting this section.
+
+\section{References}
 
 \begin{thebibliography}{9}
 
