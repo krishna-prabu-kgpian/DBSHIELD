@@ -1,7 +1,5 @@
 import asyncio
 import time
-import sqlparse
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple
 
@@ -13,12 +11,6 @@ from .config import (
     BASE_BAN_SECONDS,
     BAN_MULTIPLIER,
     MAX_BAN_SECONDS,
-    QUERY_HISTORY_MAX_ENTRIES,
-    QUERY_HISTORY_TTL_SECONDS,
-    QUERY_HISTORY_CLEANUP_INTERVAL,
-    MAX_QUERY_LENGTH,
-    MAX_BODY_SIZE,
-    BLOCKED_SQL_KEYWORDS,
 )
 
 
@@ -108,120 +100,3 @@ class IPRateLimiter:
             for ip in stale_ips:
                 del self._ip_data[ip]
                 self._ip_locks.pop(ip, None)
-
-    async def add_to_blacklist(self, ip: str):
-        async with self._state_lock:
-            self._blacklist.add(ip)
-            if ip in self._ip_data:
-                self._ip_data[ip].is_blacklisted = True
-            print(f"[BLACKLIST] IP {ip} manually added to blacklist")
-
-    async def remove_from_blacklist(self, ip: str):
-        async with self._state_lock:
-            self._blacklist.discard(ip)
-            if ip in self._ip_data:
-                self._ip_data[ip].is_blacklisted = False
-                self._ip_data[ip].violation_count = 0
-                self._ip_data[ip].penalty_until = 0
-            print(f"[BLACKLIST] IP {ip} removed from blacklist")
-
-    async def get_stats(self) -> dict:
-        async with self._state_lock:
-            return {
-                "tracked_ips": len(self._ip_data),
-                "blacklisted_ips": len(self._blacklist),
-                "blacklist": list(self._blacklist),
-            }
-
-
-class BoundedQueryHistory:
-    def __init__(
-        self,
-        max_entries: int = QUERY_HISTORY_MAX_ENTRIES,
-        ttl_seconds: int = QUERY_HISTORY_TTL_SECONDS,
-        cleanup_interval: int = QUERY_HISTORY_CLEANUP_INTERVAL
-    ):
-
-        self._history: OrderedDict[str, List[float]] = OrderedDict()
-        self._lock = asyncio.Lock()
-        self._last_cleanup = time.time()
-        self.max_entries = max_entries
-        self.ttl_seconds = ttl_seconds
-        self.cleanup_interval = cleanup_interval
-
-    async def record_and_check(self, query_hash: str, threshold: int, window: int) -> bool:
-        async with self._lock:
-            current_time = time.time()
-
-            if current_time - self._last_cleanup > self.cleanup_interval:
-                await self._cleanup_stale_entries(current_time)
-                self._last_cleanup = current_time
-
-            if query_hash not in self._history:
-                if len(self._history) >= self.max_entries:
-                    self._history.popitem(last=False)
-                self._history[query_hash] = []
-            else:
-                self._history.move_to_end(query_hash)
-
-            timestamps = self._history[query_hash]
-            self._history[query_hash] = [t for t in timestamps if current_time - t < window]
-
-            if len(self._history[query_hash]) >= threshold:
-                return True
-
-            self._history[query_hash].append(current_time)
-            return False
-
-    async def _cleanup_stale_entries(self, current_time: float):
-        stale_keys = [
-            k for k, v in self._history.items()
-            if not v or current_time - max(v) > self.ttl_seconds
-        ]
-        for key in stale_keys:
-            del self._history[key]
-
-    async def get_stats(self) -> dict:
-        async with self._lock:
-            total_timestamps = sum(len(v) for v in self._history.values())
-            return {
-                "unique_hashes": len(self._history),
-                "total_timestamps": total_timestamps,
-                "max_entries": self.max_entries,
-            }
-
-
-class RequestValidator:
-
-    def __init__(
-        self,
-        max_query_length: int = MAX_QUERY_LENGTH,
-        max_body_size: int = MAX_BODY_SIZE,
-        blocked_keywords: set = None
-    ):
-        self.max_query_length = max_query_length
-        self.max_body_size = max_body_size
-        self.blocked_keywords = blocked_keywords or BLOCKED_SQL_KEYWORDS
-
-    def validate(self, query: str, body_size: int) -> Tuple[bool, str]:
-        if body_size > self.max_body_size:
-            return False, f"Request body exceeds {self.max_body_size} bytes"
-
-        if len(query) > self.max_query_length:
-            return False, f"Query exceeds {self.max_query_length} characters"
-
-        if not query or not query.strip():
-            return False, "Empty query"
-
-        query_upper = query.upper()
-        for keyword in self.blocked_keywords:
-            if f" {keyword} " in f" {query_upper} ":
-                return False, f"Blocked SQL keyword detected: {keyword}"
-        try:
-            parsed = sqlparse.parse(query)
-            if not parsed or not parsed[0].tokens:
-                return False, "Unable to parse query"
-        except Exception:
-            return False, "Invalid SQL syntax"
-
-        return True, ""
