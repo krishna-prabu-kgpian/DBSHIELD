@@ -1,11 +1,3 @@
-"""
-Single-peer login flood simulator.
-
-Unlike ddos_simulator.py, this script does NOT send an X-Forwarded-For header.
-It is meant to exercise the direct-client path in the middleware, where the
-backend rate-limits based on the real TCP peer IP.
-"""
-
 import asyncio
 import aiohttp
 import os
@@ -16,12 +8,10 @@ import time
 
 TARGET_URL = os.getenv("TARGET_URL", "http://127.0.0.1:8000/api/login")
 
-# Tuned to demonstrate the "one peer, no XFF" behavior.
 BATCH_SIZE = int(os.getenv("SINGLE_PEER_BATCH_SIZE", "50"))
 WORKERS = int(os.getenv("SINGLE_PEER_WORKERS", "4"))
 PAUSE_BETWEEN_BATCHES_SECONDS = float(os.getenv("SINGLE_PEER_BATCH_PAUSE", "0.02"))
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("SINGLE_PEER_REQUEST_TIMEOUT", "2.0"))
-
 
 async def send_batch(session: aiohttp.ClientSession, worker_id: int):
     while True:

