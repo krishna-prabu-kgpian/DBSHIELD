@@ -41,7 +41,7 @@ def connect_to_db():
 def handle_student_login(username: str, password: str):
     import time
     
-    time.sleep(0.5)
+    time.sleep(1)
     
     sql_query = f"SELECT * from users WHERE username='{username}' AND password='{password}'"
     conn = connect_to_db()
