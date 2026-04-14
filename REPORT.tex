@@ -331,26 +331,26 @@ curl -s -X POST http://localhost:8000/api/admin/action \\
 \hspace*{1.6em}-d '\{"query":"SELECT username FROM users LIMIT 1"\}' | jq .
 \end{quote}
 
-When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = False}, the expected output is a successful response such as \texttt{\{"message":"Admin action executed.", ...\}}, even though the token belongs to a student. When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = True}, the same request is expected to fail with a controlled authorization error such as HTTP 403 and an \texttt{Access denied} message. A second useful test is to call \texttt{/api/student/view-grades} with \texttt{"student\_username":"student2"} while logged in as \texttt{student1}; the vulnerable mode returns another student's data, whereas the shielded mode returns a denial based on ownership checking.
+When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = False}, the expected output is a successful response such as \texttt{\{"message":"Admin action executed.", ...\}}, even though the token belongs to a student. When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = True}, the same request is expected to fail with a controlled authorization error such as HTTP 403 and an \texttt{Access denied} message. A second useful test is to call \texttt{/api/student/view-grades} with another student's username while logged in as \texttt{student1}; the vulnerable mode returns another student's data, whereas the shielded mode returns a denial based on ownership checking.
 
 \subsection{Results}
 
-To test the efficacy of role separation, we attempted multiple Insecure Direct Object Reference (IDOR) and privilege escalation vectors. The primary testing methodology involved logging into the system using a valid "Student" account to acquire a session token, and then utilizing standard API testing tools to manually construct HTTP requests targeting endpoints strictly reserved for "Teacher" and "Admin" roles. In the unshielded system, the backend merely verified the presence of an active session cookie to confirm authentication, incorrectly assuming that the React frontend's hiding of administrative buttons was sufficient to prevent unauthorized access.
+The authorization-bypass experiments showed a clear separation between authentication and authorization in the implemented backend. A user could obtain a bearer token only after a successful login at \texttt{/api/login}, and the server stored that token in its in-memory token table together with the corresponding \texttt{username} and \texttt{role}. Later requests therefore used a real authenticated session; the bypass behavior did not come from forged headers or fake identities, but from whether the backend performed role and ownership checks after recovering the session from the token.
 
-This design flaw proved catastrophic in the unshielded environment. Utilizing the student session, we were successfully able to transmit POST requests to the \texttt{/api/v1/teacher/update\_grades} endpoint. The backend processed the transaction without further verification, permanently altering academic records in the database. Similarly, we successfully executed GET requests against \texttt{/api/v1/admin/users}, effectively dumping the credentials and personal data of the entire student body and faculty to an unauthorized viewer.
+In the unshielded mode, the vulnerable behavior remained demonstrable exactly as intended. After logging in as \texttt{student1}, the same student token could be reused to call endpoints such as \texttt{/api/admin/action} or instructor endpoints like \texttt{/api/instructor/assign-grade}, even though those routes are meant for stronger roles. Similarly, a student session could call \texttt{/api/student/view-grades} with another student's username and receive data that should not have been exposed. These outcomes confirmed that the vulnerable configuration represents an authorization failure rather than an authentication failure.
 
-The shielded implementation effectively neutralizes this threat vector by implementing strict, server-side Role-Based Access Control (RBAC). In this environment, the session token is a properly signed JSON Web Token (JWT) that encodes the user's explicit role as a cryptographic claim. When a request hits a protected endpoint, a FastAPI dependency decodes the token, extracts the role claim, and validates it against the endpoint's strict requirements. When attempting the same replay attacks against the shielded system, the API immediately recognized the discrepancy between the requested action and the "Student" role claim, rejecting the request with an HTTP 403 Forbidden status code and preventing any unauthorized database interaction.
+In the shielded mode, the same requests were rejected consistently on the server side. The backend extracted the token, looked it up in the server-side mapping, recovered the user's role, and then compared that role against the allowed roles for the endpoint. Requests to administrator and instructor endpoints from a student token therefore failed with controlled HTTP 403 responses, while cross-user grade access was blocked by the ownership check applied to student data. The main result is therefore that the shielded implementation preserves valid login and session handling while preventing a logged-in user from turning that valid session into unauthorized access.
 
 \begin{figure}[h!]
     \centering
-    \framebox(400, 200){[PLACEHOLDER: Screenshot of successful auth bypass]}
+    \includegraphics[width=0.8\textwidth]{images/Auth_False.png}
     \caption{Successful authorization bypass in the unshielded implementation.}
     \label{fig:auth_unshielded}
 \end{figure}
 
 \begin{figure}[h!]
     \centering
-    \framebox(400, 200){[PLACEHOLDER: Screenshot of API request blocked (HTTP 403/401)]}
+    \includegraphics[width=0.8\textwidth]{images/Auth_True.png}
     \caption{Shielded system rejecting the unauthorized request with an HTTP error.}
     \label{fig:auth_shielded}
 \end{figure}
