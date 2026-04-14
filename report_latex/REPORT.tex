@@ -273,6 +273,15 @@ python3 ddos\_simulator.py
 \end{quote}
 With \texttt{ENABLE\_DDOS\_PROTECTION = False}, the attacker traffic reaches the delayed login path and the frontend becomes visibly slower during the flood. With \texttt{ENABLE\_DDOS\_PROTECTION = True}, the same spoofed attack requests are rejected in middleware and should no longer reach the expensive login handler; the expected observation is that ordinary frontend interaction remains much smoother even while the attack script is running.
 
+A second case demonstrates a direct single-peer flood without any \texttt{X-Forwarded-For} header:
+\begin{quote}
+\small\ttfamily
+Terminal 3:\\
+cd ddos\_attack \\
+python3 single\_peer\_attack.py
+\end{quote}
+In this case, the requests are treated as ordinary direct traffic from one real peer IP. When \texttt{ENABLE\_DDOS\_PROTECTION = True}, the rate limiter is applied to that real source address. Since both the attacker script and the browser are running from localhost in the demo setup, they share the same \texttt{127.0.0.1} rate-limit bucket. Once the single-peer flood exceeds the configured threshold, the legitimate browser user may also be temporarily banned along with the attacker.
+
 \subsection{Results}
 
 The implemented defense produces a clear qualitative separation between the vulnerable and shielded modes. In the unshielded run, attacker requests are still processed by the delayed login path and therefore consume time even though they eventually fail authentication. Under sustained flooding, this makes the login experience slower for a real user operating through the frontend. In the shielded run, the spoofed requests are rejected before the delayed login handler is reached, so the backend avoids spending that artificial database cost on attacker traffic.
@@ -319,6 +328,14 @@ Shielded
     \caption{Shielded login endpoint under the same attack. With \texttt{ENABLE\_DDOS\_PROTECTION = True}, spoofed requests carrying untrusted \texttt{X-Forwarded-For} headers are blocked early in middleware, producing HTTP 403 responses, while legitimate browser requests continue to succeed.}
     \label{fig:ddos_shielded}
 \end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.82\linewidth]{images/dos_single_peer_true.png}
+    \caption{Shielded single-peer flood without \texttt{X-Forwarded-For}. Because both the attacker script and the browser user originate from localhost in this demo, the direct-IP rate limiter treats them as the same peer and temporarily bans that shared source after the threshold is exceeded.}
+    \label{fig:dos_single_peer_shielded}
+\end{figure}
+
 
 \FloatBarrier
 \section{Authorization Bypass}
