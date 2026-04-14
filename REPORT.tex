@@ -249,10 +249,9 @@ Some additional payloads were also examined to clarify the limits of the current
 
 \subsection{Study}
 
-The denial-of-service study focuses on the ERP login endpoint, because this path is intentionally expensive in the vulnerable configuration and therefore makes the effect of attack traffic easy to observe. For this demonstration, the SQL-injection toggle is kept disabled so that \texttt{/api/login} uses the vulnerable \texttt{handle\_student\_login()} path, which includes an artificial delay before the database query. In the unshielded setting, \texttt{ENABLE\_DDOS\_PROTECTION = False}, so all login requests, including attacker traffic with invalid credentials, are allowed to reach this delayed path. As a result, repeated login floods consume worker capacity and make the frontend noticeably less responsive for legitimate users.
+In this study, we investigate an application-level denial-of-service scenario centered on repeated login traffic. The \texttt{/api/login} endpoint is intentionally costly in the vulnerable configuration because it uses the \texttt{handle\_student\_login()} path, which introduces an artificial delay before issuing the database query. When \texttt{ENABLE\_DDOS\_PROTECTION = False}, every request, including attacker-generated requests with invalid credentials, is allowed to execute this delayed path. Under sustained flooding, these unnecessary login attempts consume backend worker capacity and cause legitimate users to experience visible slowdown in the frontend.
 
-The shielded setting keeps the same endpoint and frontend behavior, but enables the DDoS wrapper around the application. The attack script repeatedly submits randomized login attempts and attaches spoofed \texttt{X-Forwarded-For} headers. In the current local deployment, the middleware treats such client-supplied forwarded headers as untrusted and rejects those requests before the expensive login code runs. Legitimate browser traffic does not carry this header and therefore continues normally. The shielded login path also uses a bounded semaphore around expensive authentication work, which prevents bursts from creating unbounded concurrent load. The purpose of the comparison is therefore to show that the unshielded system allows attack traffic to consume the costly login path, whereas the shielded system blocks spoofed traffic early enough to preserve normal responsiveness.
-
+In the shielded configuration, the same login endpoint and user-facing workflow are preserved, but a DDoS protection layer is enabled around the application. The attack script continuously sends randomized login attempts and includes spoofed \texttt{X-Forwarded-For} headers to imitate varying source IPs. In the current local deployment, the middleware treats such client-supplied forwarded headers as untrusted and rejects those requests before the expensive login logic is reached. Legitimate browser traffic does not include this header and therefore continues through the normal path. In addition, the shielded login flow places a bounded semaphore around expensive authentication work, preventing bursts from creating unbounded concurrent load. The comparison is intended to show that, without protection, attacker traffic is able to consume the costly login path, whereas with protection enabled, spoofed requests are blocked early enough to preserve normal responsiveness for genuine users.
 \paragraph{Demonstration setup.}
 The demonstration can be reproduced locally by launching the backend, frontend, and attack script from their respective directories:
 \begin{quote}
@@ -368,9 +367,6 @@ In the shielded mode, the same requests were rejected consistently on the server
     \label{fig:auth_shielded}
 \end{figure}
 
-% =========================================================
-% REFERENCES
-% =========================================================
 \FloatBarrier % This forces all floating figures above to be printed before starting this section.
 
 
