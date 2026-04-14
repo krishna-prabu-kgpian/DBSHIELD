@@ -107,11 +107,13 @@ Shreeraj Kalbande (23CS30025) \\[0.35em]
 
 Modern web applications depend heavily on databases to store and process sensitive information such as credentials, personal records, academic data, and administrative entries. Thus, it is important to study and understand how to construct secure databases. Ignoring this often leads to insecure design decisions such as unsafe query construction, weak validation of user-controlled input, insufficient server-side access checks, and inadequate controls against computational abuse. When such weaknesses exist in a database-backed system, the consequences can include unauthorized access, leakage of sensitive information, loss of service availability and more.
 
-We present the \textbf{DBSHIELD} project, motivated by the need to demonstrate that these issues are not merely theoretical, but can arise in many places during development. Many users and developers underestimate how severely a database system can be affected when core security mechanisms are absent or improperly implemented. Instead of discussing these risks only in abstract terms, we aim to present through this project a direct comparison between two versions of the same application: an \textit{unshielded} system that is intentionally vulnerable for controlled demonstration, and a \textit{shielded} system that includes appropriate safeguards. This side-by-side design makes the role of security measures obvious, and shows how without them the system can be significantly harmed.
+We present the \textbf{DBSHIELD} project, motivated by the need to demonstrate that these issues are not merely theoretical, but can arise in many places during development. Many users and developers underestimate how severely a database system can be affected when core security mechanisms are absent or improperly implemented. Instead of discussing these risks only in abstract terms, we aim to present through this project a direct comparison between two versions of the same application: an \textit{unshielded} system that is intentionally vulnerable for demonstration, and a \textit{shielded} system that includes appropriate safeguards. This side-by-side design makes the role of security measures obvious, and shows how without them the system can be significantly harmed.
 
 The application selected for this project is a mock student ERP system with three roles: \textit{student}, \textit{teacher}, and \textit{admin}. We selected this setting as it is something the intended audience can relate to easily, and reflects a realistic role-based application in which users authenticate, access restricted information, perform role-specific actions, and interact with shared database records. Such a system will naturally expose the central security requirements of authentication, data isolation and resilience. It therefore provides a practical environment in which database related vulnerabilities and their mitigations can be examined in a meaningful way.
 
-We focus on three representative classes of attack. The first is \textit{SQL injection}, which targets the interaction between user input and backend query execution. When queries are not handled safely, SQL injection may allow login bypass, unauthorized reads, and unintended modifications to database contents. The second is \textit{denial of service}, studied here in the form of expensive application or database requests that can degrade responsiveness or exhaust resources. The third is \textit{authorization bypass}, where a user attempts to access resources or operations outside the limits of their intended role, particularly in systems that trust client-side verification such as cookies over server-side verification.
+We focus on three representative classes of attack. The first is \textit{SQL injection}, which targets the interaction between user input and backend query execution. When queries are not handled safely, SQL injection may allow login bypass, unauthorized reads, and unintended modifications to database contents. The second is \textit{distributed denial of service}, where attackers repeatedly send requests to the app, causing genuine users to be stuck in the queue. The third is \textit{authorization bypass}, where a user attempts to access resources or operations outside the limits of their intended role, particularly in systems that trust client-side verification such as cookies over server-side verification.
+
+We also present our github repository for reproduction - \href{https://github.com/krishna-prabu-kgpian/DBSHIELD}{DBSHIELD}
 
 \section{Methodology}
 
@@ -156,35 +158,25 @@ In the \textit{Unshielded Implementation}, the raw SQL is directly fed, without 
 
 In the \textit{Shielded Implementation}, the input from the frontend is processed, checked for potential SQL Injection attacks, checked for DoS attacks, and is only then processed. This avoids issues that used to arise in the unshielded implementation.
 
-\subsection{Evaluation Criteria}
+\subsection{Study Method}
 
-For each attack category, the final comparison between the unshielded and shielded systems is organized using the following criteria:
+For each of the 3 attack types, we evaluate the unshielded model and the shielded model.
 
 \begin{itemize}
-    \item \textbf{Attack success:} whether the intended misuse achieves its goal.
-    \item \textbf{Impact scope:} what data, role, or service is affected.
-    \item \textbf{Response behavior:} whether the system leaks information, hangs, returns unsafe errors, or fails in a controlled way.
-    \item \textbf{Resilience:} whether the application remains stable and recoverable during and after testing.
-    \item \textbf{Mitigation effectiveness:} whether the shielded system prevents or significantly limits the observed issue.
+    \item \textbf{SQL Injection:} We test on various SQL injections, and obtain the results for both unshielded and shielded implementations. We verify that shielding did produce significant benefits in mitigating SQL Injection Attacks
+    \item \textbf{Distributed Denial of Service:} We test both unshielded and shielded against an attacker spamming the login endpoint to deny service to clients. We verify that in the case of shielding the client did not suffer interruptions to service.
+    \item \textbf{Authorization Bypass:} We tested on various attacks to the endpoint for accessing unauthorized information. We verified in the case of shielding such attacks were prevented, but in the case of unshielded the attacker got access to sensitive information. 
 \end{itemize}
-
 % =========================================================
 % SYSTEM ARCHITECTURE
 % =========================================================
 \section{System Architecture}
 
-The system architecture is structured as a modern, decoupled web application. The frontend is built utilizing React, providing a dynamic single-page application (SPA) experience. State management is handled through a combination of React Context and custom hooks, ensuring that user session data and role information persist across component re-renders. Routing is managed securely on the client side to restrict navigation to unauthorized views based on the logged-in user's role. However, as demonstrated in our authorization bypass studies, client-side routing is fundamentally insufficient for actual security, placing the burden of enforcement entirely on the backend architecture.
+The frontend is built using React.js, a JavaScript library. It manages state-management, routing, ensuring user data persists across sessions. 
 
-The backend is engineered using FastAPI, a modern, high-performance web framework for building APIs with Python. We leverage FastAPI's powerful dependency injection system to handle routing logic, database session management, and the crucial \texttt{ENABLE\_SQLI\_PROTECTION} toggle. In the application code, endpoints accept an injected database session parameter. When the protection toggle is set to false, the dependency yields a raw database cursor capable of executing unparameterized string concatenations. When true, the dependency strictly yields an Object-Relational Mapping (ORM) session or enforces parameterized query building, fundamentally changing the data access layer's behavior without requiring code changes within the individual endpoint functions.
+The backend was implemented using FastAPI. It handles communication with frontend and interfacing with database. It contains the parameters for the study - the \texttt{ENABLE\_SQLI\_PROTECTION} toggle, \texttt{ENABLE\_DDOS\_PROTECTION} toggle and \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION} toggle. Each of the attacks are covered in detail below, discussing how they are implemented and the results obtained. 
 
-The database layer utilizes a dual-engine setup consisting of PostgreSQL and SQLite to demonstrate vulnerability persistence across different SQL dialects. The core schema is normalized and consists of several key tables: a \texttt{Users} table storing authentication credentials and a foreign key linking to a \texttt{Roles} table; a \texttt{Courses} table detailing available curriculum offerings; an \texttt{Enrollments} table acting as a junction linking students to courses; and a \texttt{Grades} table. By structuring the database with explicit foreign key constraints and distinct data silos, we ensure that our authorization bypass and data leakage tests have clearly defined boundaries to violate in the unshielded system and protect in the shielded system.
-
-\begin{figure}[h!]
-    \centering
-    \includegraphics[width=0.92\linewidth]{images/HighLevelStructuralDiagram.png}
-    \caption{High-level overview of the DBSHIELD system architecture.}
-    \label{fig:architecture}
-\end{figure}
+The database layer uses SQLite and PostgreSQL. The core schema consists of a Users table, Roles table, Courses table, Enrollments table, Grades table. This completely simulates the Student ERP system. A detailed ER diagram is given below.
 
 \begin{figure}[h!]
     \centering
@@ -197,7 +189,7 @@ The database layer utilizes a dual-engine setup consisting of PostgreSQL and SQL
 
 \subsection{Study}
 
-The SQL injection study now covers both authentication and several ERP data-handling endpoints. The backend preserves an intentionally vulnerable implementation in its original service layer, while the hardened behavior is implemented in a separate module under \texttt{sql\_injection\_prevention}. A single runtime flag, \texttt{ENABLE\_SQLI\_PROTECTION}, determines which handler is used for each request. This paired design is useful for controlled evaluation because the application routes, payload formats, and user-visible functionality remain unchanged, while only the query-construction strategy differs between the two modes.
+The SQL injection study covers both authentication and several ERP data-handling endpoints. The backend preserves an intentionally vulnerable implementation in its original service layer, while the hardened behavior is implemented in a separate module under \texttt{sql\_injection\_prevention}. A single runtime flag, \texttt{ENABLE\_SQLI\_PROTECTION}, determines which handler is used for each request. This paired design is useful for controlled evaluation because the application routes, payload formats, and user-visible functionality remain unchanged, while only the query-construction strategy differs between the two modes.
 
 In the unshielded mode, multiple operations continue to build SQL directly from user-controlled values. These include login, course search, grade and course lookups based on usernames, enrollment and grading workflows, administrative creation and deletion actions, and an especially sensitive admin query endpoint. In the shielded mode, the same operations are routed to secure counterparts that use parameterized queries for user-supplied values. For the admin query interface, which accepts free-form SQL text by design, the secure path does not attempt to parameterize arbitrary statements; instead, it restricts execution to a single read-only \texttt{SELECT} or \texttt{WITH} query and blocks mutating or stacked statements.
 
@@ -258,21 +250,24 @@ Mutating or stacked admin SQL & Can execute directly on vulnerable path & Reject
 
 Some additional payloads were also examined to clarify the limits of the current demonstration. PostgreSQL-specific constructs such as \texttt{pg\_sleep()}, \texttt{version()}, or \texttt{information\_schema}-based extraction did not succeed against the current vulnerable login path because the project uses SQLite for this experiment. Similarly, a stacked-query payload attempting to append an \texttt{INSERT} statement raised an execution error rather than succeeding, because the present \texttt{sqlite3.execute()} path does not permit multiple statements in that form. These cases are important because they show that not every SQL injection string is universally portable; however, they do not weaken the main result. The vulnerable system remains exploitable by several practical SQLite-compatible payloads, whereas the shielded system prevents the tested SQL injection attempts while preserving normal authentication behavior.
 
-\section{Denial of Service}
+\section{Distributed Denial of Service}
 
 \subsection{Study}
 
-In this study, we investigate an application-level denial-of-service scenario centered on repeated login traffic. The \texttt{/api/login} endpoint is intentionally costly in the vulnerable configuration because it uses the \texttt{handle\_student\_login()} path, which introduces an artificial delay before issuing the database query. When \texttt{ENABLE\_DDOS\_PROTECTION = False}, every request, including attacker-generated requests with invalid credentials, is allowed to execute this delayed path. Under sustained flooding, these unnecessary login attempts consume backend worker capacity and cause legitimate users to experience visible slowdown in the frontend.
+Next, we investigate an application-level distributed denial-of-service scenario centered on repeated login traffic. The \texttt{/api/login} endpoint is intentionally costly in the vulnerable configuration because it uses the \texttt{handle\_student\_login()} path, which introduces an artificial delay before issuing the database query. When \texttt{ENABLE\_DDOS\_PROTECTION = False}, every request, including attacker-generated requests with invalid credentials, is allowed to execute this delayed path. Under sustained flooding, these attacking login attempts consume backend worker capacity and cause legitimate users to experience heavy slowdown.
 
-In the shielded configuration, the same login endpoint and user-facing workflow are preserved, but a DDoS protection layer is enabled around the application. The attack script continuously sends randomized login attempts and includes spoofed \texttt{X-Forwarded-For} headers to imitate varying source IPs. In the current local deployment, the middleware treats such client-supplied forwarded headers as untrusted and rejects those requests before the expensive login logic is reached. Legitimate browser traffic does not include this header and therefore continues through the normal path. In addition, the shielded login flow places a bounded semaphore around expensive authentication work, preventing bursts from creating unbounded concurrent load. The comparison is intended to show that, without protection, attacker traffic is able to consume the costly login path, whereas with protection enabled, spoofed requests are blocked early enough to preserve normal responsiveness for genuine users.
+In the shielded configuration, the same login endpoint and user-facing workflow are preserved, but a DDoS protection layer is enabled around the application. In the case of repeated attacks from a fixed IP Address, a rate limiting mechanism is used, that blocks any further than 10 requests a second, and 100 requests a minute. This prevents any Denial of Service attack from a single IP Address. In the case of a Distributed attack, the attack script continuously sends randomized login attempts and includes spoofed \texttt{X-Forwarded-For} headers to imitate varying source IPs. In the current local deployment, the middleware treats such client-supplied forwarded headers as untrusted and rejects those requests before the expensive login logic is reached. Legitimate browser traffic does not include this header and therefore continues through the normal path. In addition, the shielded login flow places a bounded semaphore around expensive authentication work, preventing bursts from creating unbounded concurrent load. The comparison is intended to show that, without protection, attacker traffic is able to consume the costly login path, whereas with protection enabled, spoofed requests are blocked early enough to preserve normal responsiveness for genuine users.
 \paragraph{Demonstration setup.}
-The demonstration can be reproduced locally by launching the backend, frontend, and attack script from their respective directories:
+The demonstration can be reproduced locally by launching the backend, frontend, and attack script from their respective directories in different terminals:
 \begin{quote}
 \small\ttfamily
+Terminal 1:\\
 cd backend \\
 uvicorn app:app --host 127.0.0.1 --port 8000 \\[0.3em]
+Terminal 2:\\
 cd frontend/frontend \\
 npm start \\[0.3em]
+Terminal 3:\\
 cd ddos\_attack \\
 python3 ddos\_simulator.py
 \end{quote}
@@ -336,10 +331,10 @@ In this part of the project, the backend first performs authentication and then 
 
 The unshielded and shielded versions differ in what happens \emph{after} token verification. In both cases, a request must still present a valid token that was issued at login time. In the unshielded mode, selected endpoints intentionally skip the role and ownership checks once the token is accepted, which allows a valid student session to invoke instructor or admin operations or to request another student's records. In the shielded mode, the same token-derived role is checked on the server for every protected endpoint, and student-facing data lookups also verify ownership where required. A runtime flag, \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION}, switches between these two behaviors without changing the external API.
 
-This comparison highlights the core lesson of the authorization-bypass study: authentication alone is not sufficient. Even when a token correctly represents a real logged-in user, the backend must still verify that the role attached to that token is permitted to perform the requested action and, where necessary, that the requested data belongs to that user.
+This comparison highlights the core takeaway of the authorization-bypass study: authentication alone is not sufficient. Even when a token correctly represents a real logged-in user, the backend must still verify that the role attached to that token is permitted to perform the requested action and, where necessary, that the requested data belongs to that user.
 
 \paragraph{Testing procedure.}
-For controlled testing, the variable \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION} in the backend is switched between \texttt{False} (unshielded authorization behavior) and \texttt{True} (shielded authorization behavior). A typical test first logs in as a student to obtain a bearer token and then reuses that token against an endpoint that should require a stronger role. For example:
+For testing, the variable \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION} in the backend is switched between \texttt{False} (unshielded authorization behavior) and \texttt{True} (shielded authorization behavior). A typical test first logs in as a student to obtain a bearer token and then reuses that token against an endpoint that should require a stronger role. For example:
 
 \begin{verbatim}
 TOKEN=$(curl -s -X POST http://localhost:8000/api/login \
@@ -381,6 +376,12 @@ In the shielded mode, the same requests were rejected consistently on the server
 \end{figure}
 
 \FloatBarrier % This forces all floating figures above to be printed before starting this section.
+\section{Conclusion}
 
+This project demonstrated that common database-backed application vulnerabilities can be reproduced clearly in a realistic student ERP setting, and that relatively standard defensive measures substantially improve security without changing the core functionality of the system. By comparing an intentionally vulnerable unshielded version with a hardened shielded version of the same application, we were able to isolate the effect of protection mechanisms across three major attack classes: SQL injection, denial of service, and authorization bypass.
+
+The results show a consistent pattern. In the unshielded system, unsafe SQL construction allowed authentication bypass and unauthorized data access, unsafe request handling made the login workflow vulnerable to service degradation under repeated attack traffic, and missing server-side role and ownership checks enabled authenticated users to access actions and records beyond their permissions. In the shielded system, parameterized queries and restricted admin-query handling prevented the tested SQL injection attacks, middleware and bounded processing preserved responsiveness during the login-flood demonstration, and server-side authorization checks successfully blocked cross-role and cross-user access attempts.
+
+Overall, DBSHIELD shows that database security is not a single control but a combination of safe query handling, controlled resource usage, and strict server-side authorization. The side-by-side design of the project makes this especially clear: when these controls are absent, the same application becomes exploitable in multiple ways, but when they are applied carefully, the system remains functional while resisting the demonstrated attacks. This reinforces the broader lesson that security must be treated as a core design requirement in modern database-driven applications, rather than as an optional add-on.
 
 \end{document}
