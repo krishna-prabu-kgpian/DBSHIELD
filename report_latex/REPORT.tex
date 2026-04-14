@@ -85,7 +85,7 @@
 
 \begin{center}
 {\TitleFont\bfseries
-DBSHIELD: DataBase Systems Handling for Injection, Exploitation, Leakage, and DoS
+DBSHIELD: DataBase Systems Handling for Injection, Exploitation, Leakage, and DDoS
 \par}
 
 \vspace{0.65em}
@@ -154,9 +154,9 @@ The system uses a web-application stack composed of the following components:
 
 In both the cases, the FastAPI backend is responsible for retrieving from the database, perform logical operations, checking and communicating the result to the frontend.
 
-In the \textit{Unshielded Implementation}, the raw SQL is directly fed, without any additional checking, to the database to fetch data. This can cause issues such as SQL Injection, DoS and Authorization Bypass, which are discussed later. The result similarly is directly fed to the user, without verification.
+In the \textit{Unshielded Implementation}, the raw SQL is directly fed, without any additional checking, to the database to fetch data. This can cause issues such as SQL Injection, DDoS and Authorization Bypass, which are discussed later. The result similarly is directly fed to the user, without verification.
 
-In the \textit{Shielded Implementation}, the input from the frontend is processed, checked for potential SQL Injection attacks, checked for DoS attacks, and is only then processed. This avoids issues that used to arise in the unshielded implementation.
+In the \textit{Shielded Implementation}, the input from the frontend is processed, checked for potential SQL Injection attacks, checked for DDoS attacks, and is only then processed. This avoids issues that used to arise in the unshielded implementation.
 
 \subsection{Study Method}
 
@@ -184,7 +184,7 @@ The database layer uses SQLite and PostgreSQL. The core schema consists of a Use
     \caption{Entity-Relationship diagram mapping users, roles, and academic records.}
     \label{fig:er_diagram}
 \end{figure}
-
+\FloatBarrier
 \section{SQL Injection}
 
 \subsection{Study}
@@ -249,7 +249,7 @@ Mutating or stacked admin SQL & Can execute directly on vulnerable path & Reject
 \end{table}
 
 Some additional payloads were also examined to clarify the limits of the current demonstration. PostgreSQL-specific constructs such as \texttt{pg\_sleep()}, \texttt{version()}, or \texttt{information\_schema}-based extraction did not succeed against the current vulnerable login path because the project uses SQLite for this experiment. Similarly, a stacked-query payload attempting to append an \texttt{INSERT} statement raised an execution error rather than succeeding, because the present \texttt{sqlite3.execute()} path does not permit multiple statements in that form. These cases are important because they show that not every SQL injection string is universally portable; however, they do not weaken the main result. The vulnerable system remains exploitable by several practical SQLite-compatible payloads, whereas the shielded system prevents the tested SQL injection attempts while preserving normal authentication behavior.
-
+% \FloatBarrier
 \section{Distributed Denial of Service}
 
 \subsection{Study}
@@ -282,8 +282,8 @@ This difference is consistent with the present implementation. The attacker scri
 \begin{table}[h]
 \centering
 \small
-\caption{Observed qualitative behavior of the DoS demonstration.}
-\label{tab:dos_results}
+\caption{Observed qualitative behavior of the DDoS demonstration.}
+\label{tab:ddos_results}
 \begin{tabular}{%
     >{\raggedright\arraybackslash}p{0.26\linewidth}
     >{\raggedright\arraybackslash}p{0.21\linewidth}
@@ -310,17 +310,17 @@ Shielded
     \centering
     \includegraphics[width=0.9\linewidth]{images/ddos_false.png}
     \caption{Unshielded login endpoint during the spoofed request flood. With \texttt{ENABLE\_DDOS\_PROTECTION = False}, attacker requests still reach the delayed authentication path and are rejected only after backend work is spent, producing many HTTP 401 responses and noticeably degrading responsiveness for legitimate users.}
-    \label{fig:dos_unshielded}
+    \label{fig:ddos_unshielded}
 \end{figure}
 
 \begin{figure}[h!]
     \centering
-    \includegraphics[width=0.9\linewidth]{images/ddos_true.png}
+    \includegraphics[width=0.78\linewidth, height=0.32\textheight, keepaspectratio]{images/ddos_true.png}
     \caption{Shielded login endpoint under the same attack. With \texttt{ENABLE\_DDOS\_PROTECTION = True}, spoofed requests carrying untrusted \texttt{X-Forwarded-For} headers are blocked early in middleware, producing HTTP 403 responses, while legitimate browser requests continue to succeed.}
-    \label{fig:dos_shielded}
+    \label{fig:ddos_shielded}
 \end{figure}
 
-
+\FloatBarrier
 \section{Authorization Bypass}
 
 \subsection{Study}
@@ -377,11 +377,6 @@ In the shielded mode, the same requests were rejected consistently on the server
 
 \FloatBarrier % This forces all floating figures above to be printed before starting this section.
 \section{Conclusion}
-
-This project demonstrated that common database-backed application vulnerabilities can be reproduced clearly in a realistic student ERP setting, and that relatively standard defensive measures substantially improve security without changing the core functionality of the system. By comparing an intentionally vulnerable unshielded version with a hardened shielded version of the same application, we were able to isolate the effect of protection mechanisms across three major attack classes: SQL injection, denial of service, and authorization bypass.
-
-The results show a consistent pattern. In the unshielded system, unsafe SQL construction allowed authentication bypass and unauthorized data access, unsafe request handling made the login workflow vulnerable to service degradation under repeated attack traffic, and missing server-side role and ownership checks enabled authenticated users to access actions and records beyond their permissions. In the shielded system, parameterized queries and restricted admin-query handling prevented the tested SQL injection attacks, middleware and bounded processing preserved responsiveness during the login-flood demonstration, and server-side authorization checks successfully blocked cross-role and cross-user access attempts.
-
-Overall, DBSHIELD shows that database security is not a single control but a combination of safe query handling, controlled resource usage, and strict server-side authorization. The side-by-side design of the project makes this especially clear: when these controls are absent, the same application becomes exploitable in multiple ways, but when they are applied carefully, the system remains functional while resisting the demonstrated attacks. This reinforces the broader lesson that security must be treated as a core design requirement in modern database-driven applications, rather than as an optional add-on.
-
+This project showed that common database-backed application vulnerabilities can be reproduced clearly in a realistic student ERP system, and that standard defensive measures can greatly improve security without changing core functionality. By comparing an intentionally vulnerable unshielded version with a hardened shielded version of the same system, we isolated the impact of protections across three major attack classes: SQL injection, denial of service, and authorization bypass. In the unshielded system, unsafe SQL construction enabled authentication bypass and unauthorized data access, unsafe request handling made the login workflow vulnerable to slowdown under repeated attack traffic, and missing server-side authorization checks allowed authenticated users to exceed their intended permissions.
+In contrast, the shielded system prevented the tested SQL injection attacks through parameterized queries and restricted admin-query handling, preserved responsiveness during the login-flood demonstration through middleware and bounded processing, and blocked cross-role and cross-user access through strict server-side authorization checks. Overall, DBSHIELD shows that database security depends on multiple layers of defense working together, including safe query handling, controlled resource usage, and strong authorization enforcemen thus reinforcing security must be treated as fundamental design requirement
 \end{document}
