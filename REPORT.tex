@@ -211,7 +211,7 @@ For controlled testing, the backend variable \texttt{ENABLE\_SQLI\_PROTECTION} i
 \begin{verbatim}
 curl -s -X POST http://localhost:8000/api/login \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"' OR '1'='1\",\"password\":\"' OR '1'='1\"}" | jq .
+  -d "{"username":"' OR '1'='1","password":"' OR '1'='1"}" | jq .
 \end{verbatim}
 
 When \texttt{ENABLE\_SQLI\_PROTECTION = False}, the expected outcome is a successful login or a query-manipulated response showing that user input has changed SQL semantics. When \texttt{ENABLE\_SQLI\_PROTECTION = True}, the same request is expected to fail safely, either because the payload is detected as malicious or because parameterized handling preserves the intended query structure.
