@@ -205,6 +205,17 @@ To evaluate this design, we use a controlled set of payloads against both the lo
 
 The experiments are executed through the project test harness and through the application toggle that switches between vulnerable and secure handlers. For each case, the main observation is whether the supplied payload changes query semantics, broadens the result set, causes unintended data modification, or bypasses the intended restriction on the admin action endpoint. The comparison therefore measures not only whether login injection is prevented, but also whether the same defensive strategy generalizes across the broader ERP workflow.
 
+\paragraph{Testing procedure.}
+For controlled testing, the backend variable \texttt{ENABLE\_SQLI\_PROTECTION} is switched between \texttt{False} and \texttt{True} while keeping the same API routes active. A representative login-bypass attempt can be issued against \texttt{/api/login} using a SQLite-compatible tautology payload such as \texttt{' OR '1'='1}. The vulnerable mode is expected to authenticate the attacker or otherwise alter the intended query logic, whereas the shielded mode is expected to reject the request or treat the supplied string as ordinary input. The same comparison is then repeated across course-search, grade-view, enrollment, and admin-query endpoints using the documented payload set from the project tests.
+
+\begin{verbatim}
+curl -s -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"' OR '1'='1\",\"password\":\"' OR '1'='1\"}" | jq .
+\end{verbatim}
+
+When \texttt{ENABLE\_SQLI\_PROTECTION = False}, the expected outcome is a successful login or a query-manipulated response showing that user input has changed SQL semantics. When \texttt{ENABLE\_SQLI\_PROTECTION = True}, the same request is expected to fail safely, either because the payload is detected as malicious or because parameterized handling preserves the intended query structure.
+
 \subsection{Results}
 
 The updated SQL injection experiments show a consistent separation between the vulnerable ERP service layer and the shielded handlers selected through \texttt{ENABLE\_SQLI\_PROTECTION}. On the login path, the previously documented SQLite-compatible payloads continued to succeed against the unshielded implementation: comment-based and tautology payloads enabled authentication bypass, \texttt{UNION}-based payloads could fabricate or expose rows, and blind inference payloads could still alter query logic. This confirms that the vulnerable path remains suitable for controlled demonstration.
@@ -213,15 +224,15 @@ The broader ERP tests show the same pattern. In the unshielded mode, username-ba
 
 \begin{figure}[h!]
     \centering
-    \framebox(400, 200){[PLACEHOLDER: Screenshot of Successful Unshielded SQLi Bypass]}
-    \caption{Successful login bypass in the unshielded implementation using a tautology payload.}
+    \includegraphics[width=0.88\linewidth]{images/SQLi_False.png}
+    \caption{Successful SQL injection against the unshielded implementation, showing that the crafted login payload is accepted and query logic is altered.}
     \label{fig:sqli_unshielded}
 \end{figure}
 
 \begin{figure}[h!]
     \centering
-    \framebox(400, 200){[PLACEHOLDER: Screenshot of Shielded System Blocking SQLi]}
-    \caption{Shielded system securely treating the malicious payload as a literal string.}
+    \includegraphics[width=0.88\linewidth]{images/SQLi_True.png}
+    \caption{Shielded SQL injection handling with \texttt{ENABLE\_SQLI\_PROTECTION = True}, where the malicious payload is rejected or treated as ordinary input without altering query structure.}
     \label{fig:sqli_shielded}
 \end{figure}
 
