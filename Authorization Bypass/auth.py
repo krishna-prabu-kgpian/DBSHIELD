@@ -10,11 +10,9 @@ class AuthContext:
         self.role = role.lower()
     
     def has_role(self, required_role: str) -> bool:
-        """Check if user has the required role."""
         return self.role == required_role.lower()
     
     def has_any_role(self, required_roles: List[str]) -> bool:
-        """Check if user has any of the required roles."""
         return self.role in [r.lower() for r in required_roles]
     
     def is_admin(self) -> bool:

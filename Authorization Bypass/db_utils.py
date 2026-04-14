@@ -25,10 +25,6 @@ def get_db_connection():
         return None
 
 def search_courses_db(query: str) -> list[dict]:
-    """
-    Search for courses in the database.
-    Returns courses matching the search query.
-    """
     conn = get_db_connection()
     if not conn:
         return []

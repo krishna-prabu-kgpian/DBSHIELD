@@ -1,5 +1,3 @@
-"""ERP service layer with direct database operations."""
-
 from __future__ import annotations
 
 import sqlite3
