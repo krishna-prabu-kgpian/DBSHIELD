@@ -69,6 +69,8 @@ Generated student accounts follow the same pattern: `studentN / passN`.
 
 ## Testing Authorization Bypass
 
+*** All the given commands are for Linux based systems
+
 Set `ENABLE_AUTH_BYPASS_PROTECTION = False` in `backend/app.py` to demonstrate the vulnerable authorization-bypass behavior.
 Set it back to `True` to verify that the same requests are blocked by server-side checks.
 
