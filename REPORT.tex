@@ -175,7 +175,33 @@ The shielded version solves this by filtering malicious traffic \emph{before} it
 
 The third attack category studies authorization bypass. Because the ERP has clearly separated user roles, it is important to evaluate whether a user can access functions or records beyond their intended permissions. This includes scenarios such as requesting pages intended for another role, directly invoking restricted backend endpoints, or attempting to retrieve or modify records that should not be accessible under the current identity.
 
-The unshielded system is used to study whether role separation is enforced weakly or only on the client side. The shielded system is then used to verify whether access control is consistently enforced on the server for every protected action. The comparison highlights the difference between superficial interface-based restrictions and proper backend authorization.
+In this part of the project, the backend first performs authentication and then demonstrates the separate question of authorization. After a successful login, the server generates a fresh random bearer token and stores it in an in-memory token table that maps the token to the authenticated user's \texttt{username} and \texttt{role}. Subsequent requests are therefore not allowed to declare their role directly through client-controlled headers; instead, the backend extracts the bearer token, looks it up on the server, and recovers the associated identity and role from that mapping. This design is useful in the report because it makes the distinction between ``logged in'' and ``allowed to do this action'' very explicit.
+
+The unshielded and shielded versions differ in what happens \emph{after} token verification. In both cases, a request must still present a valid token that was issued at login time. In the unshielded mode, selected endpoints intentionally skip the role and ownership checks once the token is accepted, which allows a valid student session to invoke instructor or admin operations or to request another student's records. In the shielded mode, the same token-derived role is checked on the server for every protected endpoint, and student-facing data lookups also verify ownership where required. A runtime flag, \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION}, switches between these two behaviors without changing the external API.
+
+This comparison highlights the core lesson of the authorization-bypass study: authentication alone is not sufficient. Even when a token correctly represents a real logged-in user, the backend must still verify that the role attached to that token is permitted to perform the requested action and, where necessary, that the requested data belongs to that user.
+
+\paragraph{Testing procedure.}
+For controlled testing, the variable \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION} in the backend is switched between \texttt{False} (unshielded authorization behavior) and \texttt{True} (shielded authorization behavior). A typical test first logs in as a student to obtain a bearer token and then reuses that token against an endpoint that should require a stronger role. For example:
+
+\begin{quote}
+\small\ttfamily
+TOKEN=\$(curl -s -X POST http://localhost:8000/api/login \\
+\hspace*{1.6em}-H "Content-Type: application/json" \\
+\hspace*{1.6em}-d '\{"username":"student1","password":"pass1"\}' | jq -r '.token')
+\end{quote}
+
+The expected outcome of this login request is a successful response containing a token together with the authenticated \texttt{username} and \texttt{role}. That token can then be used to test a protected admin endpoint:
+
+\begin{quote}
+\small\ttfamily
+curl -s -X POST http://localhost:8000/api/admin/action \\
+\hspace*{1.6em}-H "Authorization: Bearer \$TOKEN" \\
+\hspace*{1.6em}-H "Content-Type: application/json" \\
+\hspace*{1.6em}-d '\{"query":"SELECT username FROM users LIMIT 1"\}' | jq .
+\end{quote}
+
+When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = False}, the expected output is a successful response such as \texttt{\{"message":"Admin action executed.", ...\}}, even though the token belongs to a student. When \texttt{ENABLE\_AUTH\_BYPASS\_PROTECTION = True}, the same request is expected to fail with a controlled authorization error such as HTTP 403 and an \texttt{Access denied} message. A second useful test is to call \texttt{/api/student/view-grades} with \texttt{"student\_username":"student2"} while logged in as \texttt{student1}; the vulnerable mode returns another student's data, whereas the shielded mode returns a denial based on ownership checking.
 
 \subsection{Evaluation Criteria}
 
@@ -231,6 +257,14 @@ Mutating or stacked admin SQL & Can execute directly on vulnerable path & Reject
 \end{table}
 
 Some additional payloads were also examined to clarify the limits of the current demonstration. PostgreSQL-specific constructs such as \texttt{pg\_sleep()}, \texttt{version()}, or \texttt{information\_schema}-based extraction did not succeed against the current vulnerable login path because the project uses SQLite for this experiment. Similarly, a stacked-query payload attempting to append an \texttt{INSERT} statement raised an execution error rather than succeeding, because the present \texttt{sqlite3.execute()} path does not permit multiple statements in that form. These cases are important because they show that not every SQL injection string is universally portable; however, they do not weaken the main result. The vulnerable system remains exploitable by several practical SQLite-compatible payloads, whereas the shielded system prevents the tested SQL injection attempts while preserving normal authentication behavior.
+
+\subsection{Authorization Bypass Results}
+
+The authorization-bypass experiments showed a clear separation between authentication and authorization. The login flow successfully issued bearer tokens only after valid credentials were presented, and each token was mapped server-side to the corresponding \texttt{username} and \texttt{role}. This means that the later bypass behavior was not caused by fake logins or client-side role spoofing; instead, it came from how the backend handled an otherwise valid authenticated session after token verification.
+
+In the unshielded mode, once a valid token was accepted, selected protected endpoints intentionally skipped role enforcement. As a result, a student token could be reused to access operations that should belong only to instructors or administrators, and a student session could also request records belonging to another user. This confirmed that the vulnerable configuration demonstrates a genuine authorization failure rather than an authentication failure. In the shielded mode, the same requests were rejected because the backend recovered the role from the token mapping and checked it against the allowed role set for each endpoint; student-owned data checks were likewise enforced before returning grade information.
+
+These results are important because they show that secure session handling and secure authorization are related but distinct requirements. The token mapping prevents simple client-side role fabrication, while the per-endpoint role and ownership checks determine whether the authenticated user is actually permitted to proceed. Together, these observations make the project's main lesson concrete: a valid session should prove identity, but it must never by itself imply universal access.
 
 \section{References Placeholder}
 
