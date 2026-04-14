@@ -89,13 +89,13 @@ except ImportError as e:
 # DEMONSTRATION TOGGLE
 # Set this to True to enable the DDOS protection layer
 # Set this to False to simulate an unprotected backend
-ENABLE_DDOS_PROTECTION = True 
+ENABLE_DDOS_PROTECTION = False 
 # Set this to True to enable the secure ERP layer and explicit SQLi detection.
 # Set this to False to keep the legacy demo handlers available in the codebase.
-ENABLE_SQLI_PROTECTION = True
+ENABLE_SQLI_PROTECTION = False
 # Set this to True to ENFORCE role-based access control (secure)
 # Set this to False to BYPASS role checks and allow any token (vulnerable)
-ENABLE_AUTH_BYPASS_PROTECTION = True
+ENABLE_AUTH_BYPASS_PROTECTION = False
 # =====================================================================
 
 app = FastAPI(title="DBSHIELD Backend")
