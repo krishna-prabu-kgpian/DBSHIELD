@@ -49,24 +49,17 @@ from sql_injection_prevention.secure_erp_placeholders import (
     student_grades_placeholder_secure,
 )
 
-# Import Authorization Bypass prevention module
-# Add the parent directory (DBSHIELD) to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
-    # Import from folder with space in name
     auth_bypass_path = Path(__file__).resolve().parent.parent / "Authorization Bypass"
-    
-    # Load authorization module
     auth_spec = importlib.util.spec_from_file_location("authorization", auth_bypass_path / "authorization.py")
     auth_module = importlib.util.module_from_spec(auth_spec)
     auth_spec.loader.exec_module(auth_module)
-    
-    # Load auth_database module
+
     auth_db_spec = importlib.util.spec_from_file_location("auth_database", auth_bypass_path / "auth_database.py")
     auth_db_module = importlib.util.module_from_spec(auth_db_spec)
     auth_db_spec.loader.exec_module(auth_db_module)
     
-    # Import functions
     check_role_requirement = auth_module.check_role_requirement
     extract_user_role_from_token = auth_module.extract_user_role_from_token
     check_data_ownership = auth_module.check_data_ownership
@@ -75,7 +68,7 @@ try:
     verify_session_token = auth_db_module.verify_session_token
 
 except ImportError as e:
-    # Fallback if module not found
+
     print(f"Warning: Authorization Bypass module not found: {e}")
     def check_role_requirement(*args, **kwargs): pass
     def extract_user_role_from_token(*args, **kwargs): return "", ""
@@ -85,24 +78,17 @@ except ImportError as e:
     def verify_session_token(*args, **kwargs): return None
 
 
-# =====================================================================
-# DEMONSTRATION TOGGLE
-# Set this to True to enable the DDOS protection layer
-# Set this to False to simulate an unprotected backend
 ENABLE_DDOS_PROTECTION = False 
-# Set this to True to enable the secure ERP layer and explicit SQLi detection.
-# Set this to False to keep the legacy demo handlers available in the codebase.
+
 ENABLE_SQLI_PROTECTION = False
-# Set this to True to ENFORCE role-based access control (secure)
-# Set this to False to BYPASS role checks and allow any token (vulnerable)
+
 ENABLE_AUTH_BYPASS_PROTECTION = False
-# =====================================================================
+
 
 app = FastAPI(title="DBSHIELD Backend")
 
 ddos_protection = AppDDoSProtection(load_app_ddos_settings(ENABLE_DDOS_PROTECTION))
 app.middleware("http")(ddos_protection.middleware)
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,7 +99,6 @@ app.add_middleware(
 )
 
 set_token_verifier(verify_session_token)
-
 
 if ENABLE_SQLI_PROTECTION:
     add_material_service = add_material_placeholder_secure
@@ -154,14 +139,12 @@ else:
     student_courses_service = student_courses_placeholder
     student_grades_service = student_grades_placeholder
 
-
 def authenticate_login_request(username: str, password: str):
     return authenticate_login_attempt(
         username,
         password,
         detect_sql_injection=ENABLE_SQLI_PROTECTION,
     )
-
 
 def authorize_request(
     request: Request,
@@ -180,9 +163,6 @@ def authorize_request(
     return username, role
 
 
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
 class LoginPayload(BaseModel):
     username: str
     password: str
@@ -238,13 +218,9 @@ class CourseCodePayload(BaseModel):
     course_code: str
 
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
-
 
 @app.post("/api/login")
 async def login(payload: LoginPayload) -> dict[str, str]:
@@ -277,7 +253,6 @@ async def login(payload: LoginPayload) -> dict[str, str]:
     if role not in {"student", "instructor", "admin"}:
         role = "student"
 
-    # ✅ Create Bearer token tied to authenticated user
     token = create_session_token(user, role)
 
     return {
@@ -289,7 +264,6 @@ async def login(payload: LoginPayload) -> dict[str, str]:
         "name": name,
         "instructions": "Use this token in requests: Authorization: Bearer " + token
     }
-
 
 @app.post("/api/student/search-courses")
 def student_search_courses(payload: CourseSearchPayload, request: Request) -> dict[str, list[dict[str, str]]]:
@@ -320,7 +294,6 @@ def student_enroll(payload: StudentCoursePayload, request: Request) -> dict[str,
 def student_deregister(payload: StudentCoursePayload, request: Request) -> dict[str, object]:
     authorize_request(request, ["student"], "Course deregistration")
     return deregister_course_service(payload.student_username, payload.course_code)
-
 
 
 @app.post("/api/instructor/admit-student")

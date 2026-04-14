@@ -1,17 +1,11 @@
-# Integrated Dependencies for DBSHIELD Project
-
-# Backend & API
-fastapi
+astapi
 uvicorn
 python-dotenv
 psycopg2-binary
 
-# Database & Query Parsing (DDoS Defense Layer)
 sqlparse
 
-# Authentication Bypass / Tools
 requests
 colorama
 
-# DDoS Simulator Script
 aiohttp

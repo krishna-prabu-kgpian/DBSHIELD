@@ -1,12 +1,3 @@
-"""
-Caching layer for the DDoS Shield system.
-
-Implements:
-- Full result caching (exact query match)
-- Intermediate/Mid-AST caching (superset query matching)
-- Optimized locking and pre-compiled regex for ReDoS mitigation
-"""
-
 import asyncio
 import hashlib
 import sys
@@ -25,11 +16,8 @@ from .config import (
     INTERMEDIATE_CACHE_TTL_SECONDS,
 )
 
-# --- Data Classes ---
-
 @dataclass
 class CacheEntry:
-    """Represents a cached query result."""
     result: Any
     created_at: float
     last_accessed: float
@@ -38,7 +26,6 @@ class CacheEntry:
 
 @dataclass
 class WhereCondition:
-    """Single WHERE clause condition."""
     column: str
     operator: str  
     value: Any
@@ -48,14 +35,12 @@ class WhereCondition:
 
 @dataclass
 class ParsedQuery:
-    """Structured representation of a parsed SQL query."""
     table_name: str
     select_columns: List[str]
     where_conditions: List[WhereCondition]
     original_query: str = ""
 
     def get_condition_key(self) -> str:
-        """Generate a key from sorted conditions for cache lookup."""
         sorted_conds = sorted(
             [f"{c.column.upper()}{c.operator}{c.value}" for c in self.where_conditions]
         )
@@ -63,18 +48,11 @@ class ParsedQuery:
 
 @dataclass
 class IntermediateCacheEntry:
-    """Cache entry for intermediate results."""
     parsed_query: ParsedQuery
     result_set: List[Dict[str, Any]]
     created_at: float
 
-# --- Full Result Cache ---
-
 class FullResultCache:
-    """
-    Cache for complete query results.
-    Key: hash(AST_structure + sorted_parameter_values)
-    """
 
     def __init__(
         self,
@@ -92,7 +70,6 @@ class FullResultCache:
         self.misses = 0
 
     async def get(self, cache_key: str) -> Optional[Any]:
-        """Get cached result."""
         async with self._lock:
             if cache_key not in self._cache:
                 self.misses += 1
@@ -113,8 +90,7 @@ class FullResultCache:
             return entry.result
 
     async def set(self, cache_key: str, result: Any):
-        """Store result in cache. Heavy lifting done outside the lock."""
-        # Estimate size outside the lock to prevent blocking the event loop
+
         size_bytes = sys.getsizeof(result)
         if isinstance(result, list):
             size_bytes += sum(sys.getsizeof(item) for item in result)
@@ -133,7 +109,6 @@ class FullResultCache:
             self.current_memory += size_bytes
 
     async def _evict_if_needed(self, incoming_size: int):
-        """Evict entries if over limits."""
         current_time = time.time()
         expired_keys = [
             k for k, v in self._cache.items()
@@ -154,7 +129,6 @@ class FullResultCache:
             del self._cache[lru_key]
 
     async def cleanup_expired(self):
-        """Remove all expired entries."""
         async with self._lock:
             current_time = time.time()
             expired_keys = [
@@ -166,7 +140,6 @@ class FullResultCache:
                 del self._cache[key]
 
     async def get_stats(self) -> dict:
-        """Get cache statistics."""
         async with self._lock:
             total = self.hits + self.misses
             hit_rate = (self.hits / total * 100) if total > 0 else 0
@@ -179,10 +152,7 @@ class FullResultCache:
                 "hit_rate_percent": round(hit_rate, 2),
             }
 
-# --- Query Parser for Mid-AST Caching ---
-
 class QuerySupersetDetector:
-    """Parses SQL queries and detects superset relationships."""
 
     def parse_query(self, sql: str) -> Optional[ParsedQuery]:
         try:
@@ -308,17 +278,12 @@ class QuerySupersetDetector:
         ]
         return True, additional_conditions
 
-# --- In-Memory Result Filtering ---
-
 class InMemoryFilter:
-    """Applies additional WHERE conditions to cached result sets in memory with pre-compiled regex."""
 
     def filter_results(self, result_set: List[Dict[str, Any]], conditions: List[WhereCondition]) -> List[Dict[str, Any]]:
         if not conditions:
             return result_set
 
-        # Pre-compile regex patterns for LIKE operators OUTSIDE the row loop
-        # This prevents ReDoS and massive CPU spikes on large datasets
         compiled_conditions = []
         for cond in conditions:
             if cond.operator == "LIKE":
@@ -367,10 +332,9 @@ class InMemoryFilter:
         except (TypeError, ValueError):
             return False
 
-# --- Intermediate Result Cache ---
+
 
 class IntermediateResultCache:
-    """Cache for intermediate/partial results enabling mid-AST matching."""
 
     def __init__(self, max_per_table: int = INTERMEDIATE_CACHE_MAX_PER_TABLE, ttl_seconds: int = INTERMEDIATE_CACHE_TTL_SECONDS):
         self._cache: Dict[str, Dict[str, IntermediateCacheEntry]] = defaultdict(dict)
@@ -444,8 +408,6 @@ class IntermediateResultCache:
                 "misses": self.misses,
                 "hit_rate_percent": round(hit_rate, 2),
             }
-
-# --- Cache Key Computation ---
 
 def compute_full_cache_key(sql_query: str) -> str:
     try:

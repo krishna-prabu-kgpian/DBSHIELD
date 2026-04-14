@@ -1,7 +1,3 @@
-"""
-Rate limiting and request validation for DDoS protection.
-"""
-
 import asyncio
 import time
 import sqlparse
@@ -28,7 +24,6 @@ from .config import (
 
 @dataclass
 class IPTrackingInfo:
-    """Tracks rate limiting and penalty info per IP."""
     request_timestamps: List[float] = field(default_factory=list)
     violation_count: int = 0
     last_violation_time: float = 0
@@ -37,10 +32,6 @@ class IPTrackingInfo:
 
 
 class IPRateLimiter:
-    """
-    Multi-tier IP-based rate limiting with progressive penalties.
-    """
-
     def __init__(self):
         self._ip_data: Dict[str, IPTrackingInfo] = {}
         self._ip_locks: Dict[str, asyncio.Lock] = {}
@@ -49,7 +40,6 @@ class IPRateLimiter:
         self._last_cleanup = time.time()
 
     async def check_ip(self, ip_address: str) -> Tuple[bool, str]:
-        """Check if IP is allowed to make request."""
         async with self._state_lock:
             if ip_address in self._blacklist:
                 return False, "IP permanently blacklisted"
@@ -91,7 +81,6 @@ class IPRateLimiter:
             return True, ""
 
     async def _record_violation(self, ip: str, info: IPTrackingInfo, current_time: float):
-        """Record violation and apply progressive penalties."""
         info.violation_count += 1
         info.last_violation_time = current_time
 
@@ -108,7 +97,6 @@ class IPRateLimiter:
             print(f"[TEMP BAN] IP {ip} banned for {ban_duration}s (violation #{info.violation_count})")
 
     async def _cleanup_old_ips(self, current_time: float):
-        """Remove IPs with no recent activity."""
         async with self._state_lock:
             stale_ips = [
                 ip for ip, info in self._ip_data.items()
@@ -122,7 +110,6 @@ class IPRateLimiter:
                 self._ip_locks.pop(ip, None)
 
     async def add_to_blacklist(self, ip: str):
-        """Manually blacklist an IP."""
         async with self._state_lock:
             self._blacklist.add(ip)
             if ip in self._ip_data:
@@ -130,7 +117,6 @@ class IPRateLimiter:
             print(f"[BLACKLIST] IP {ip} manually added to blacklist")
 
     async def remove_from_blacklist(self, ip: str):
-        """Remove IP from blacklist."""
         async with self._state_lock:
             self._blacklist.discard(ip)
             if ip in self._ip_data:
@@ -140,7 +126,6 @@ class IPRateLimiter:
             print(f"[BLACKLIST] IP {ip} removed from blacklist")
 
     async def get_stats(self) -> dict:
-        """Get rate limiter statistics."""
         async with self._state_lock:
             return {
                 "tracked_ips": len(self._ip_data),
@@ -150,18 +135,13 @@ class IPRateLimiter:
 
 
 class BoundedQueryHistory:
-    """
-    Thread-safe, memory-bounded query history for AST-based rate limiting.
-    Upgraded to use O(1) eviction via OrderedDict to survive DoS floods.
-    """
-
     def __init__(
         self,
         max_entries: int = QUERY_HISTORY_MAX_ENTRIES,
         ttl_seconds: int = QUERY_HISTORY_TTL_SECONDS,
         cleanup_interval: int = QUERY_HISTORY_CLEANUP_INTERVAL
     ):
-        # Using OrderedDict for O(1) LRU caching
+
         self._history: OrderedDict[str, List[float]] = OrderedDict()
         self._lock = asyncio.Lock()
         self._last_cleanup = time.time()
@@ -170,9 +150,6 @@ class BoundedQueryHistory:
         self.cleanup_interval = cleanup_interval
 
     async def record_and_check(self, query_hash: str, threshold: int, window: int) -> bool:
-        """
-        Atomically records timestamp and checks if rate limited.
-        """
         async with self._lock:
             current_time = time.time()
 
@@ -180,14 +157,11 @@ class BoundedQueryHistory:
                 await self._cleanup_stale_entries(current_time)
                 self._last_cleanup = current_time
 
-            # O(1) Eviction Logic
             if query_hash not in self._history:
                 if len(self._history) >= self.max_entries:
-                    # Instantly pop the oldest item from the front
                     self._history.popitem(last=False)
                 self._history[query_hash] = []
             else:
-                # Move accessed item to the back (most recently used)
                 self._history.move_to_end(query_hash)
 
             timestamps = self._history[query_hash]
@@ -200,7 +174,6 @@ class BoundedQueryHistory:
             return False
 
     async def _cleanup_stale_entries(self, current_time: float):
-        """Remove entries with no recent activity."""
         stale_keys = [
             k for k, v in self._history.items()
             if not v or current_time - max(v) > self.ttl_seconds
@@ -209,7 +182,6 @@ class BoundedQueryHistory:
             del self._history[key]
 
     async def get_stats(self) -> dict:
-        """Get query history statistics."""
         async with self._lock:
             total_timestamps = sum(len(v) for v in self._history.values())
             return {
@@ -220,7 +192,6 @@ class BoundedQueryHistory:
 
 
 class RequestValidator:
-    """Validates incoming requests for DDoS mitigation."""
 
     def __init__(
         self,
@@ -233,7 +204,6 @@ class RequestValidator:
         self.blocked_keywords = blocked_keywords or BLOCKED_SQL_KEYWORDS
 
     def validate(self, query: str, body_size: int) -> Tuple[bool, str]:
-        """Validate request."""
         if body_size > self.max_body_size:
             return False, f"Request body exceeds {self.max_body_size} bytes"
 
@@ -247,7 +217,6 @@ class RequestValidator:
         for keyword in self.blocked_keywords:
             if f" {keyword} " in f" {query_upper} ":
                 return False, f"Blocked SQL keyword detected: {keyword}"
-
         try:
             parsed = sqlparse.parse(query)
             if not parsed or not parsed[0].tokens:

@@ -1,15 +1,9 @@
-"""
-Authorization utilities for role-based access control (RBAC).
-Provides decorators and context managers for secure endpoint protection.
-"""
-
 from functools import wraps
 from fastapi import HTTPException, Request
 from typing import Optional, List, Callable
 
 
 class AuthContext:
-    """Holds current user's authentication information."""
     
     def __init__(self, username: str, role: str):
         self.username = username
@@ -34,16 +28,6 @@ class AuthContext:
 
 
 def extract_auth_context(request: Request) -> Optional[AuthContext]:
-    """
-    Extract authentication context from request.
-    
-    In a real system, this would:
-    1. Extract JWT token from Authorization header
-    2. Validate token signature
-    3. Extract claims (username, role)
-    
-    For this demo, we use custom headers.
-    """
     username = request.headers.get("X-User")
     role = request.headers.get("X-Role")
     
@@ -54,14 +38,6 @@ def extract_auth_context(request: Request) -> Optional[AuthContext]:
 
 
 def require_role(*allowed_roles: str) -> Callable:
-    """
-    Decorator to enforce role-based access control.
-    
-    Usage:
-        @require_role("instructor", "admin")
-        def protected_endpoint(auth: AuthContext):
-            ...
-    """
     def decorator(func):
         @wraps(func)
         async def async_wrapper(*args, request: Request = None, **kwargs):
@@ -79,7 +55,6 @@ def require_role(*allowed_roles: str) -> Callable:
                     detail=f"Access denied. Required role(s): {', '.join(allowed_roles)}"
                 )
             
-            # Pass auth context to handler
             kwargs['auth'] = auth
             return await func(*args, request=request, **kwargs)
         
@@ -99,11 +74,9 @@ def require_role(*allowed_roles: str) -> Callable:
                     detail=f"Access denied. Required role(s): {', '.join(allowed_roles)}"
                 )
             
-            # Pass auth context to handler
             kwargs['auth'] = auth
             return func(*args, request=request, **kwargs)
         
-        # Return async or sync based on function type
         if hasattr(func, '__call__'):
             import inspect
             if inspect.iscoroutinefunction(func):
@@ -113,25 +86,17 @@ def require_role(*allowed_roles: str) -> Callable:
     return decorator
 
 
-def check_data_ownership(requesting_user: str, target_user: str, 
-                        allow_admin_override: bool = True) -> None:
-    """
-    Enforce that users can only access their own data.
-    Admins can override if allow_admin_override is True.
-    """
-    # For real implementation, add is_admin check
+def check_data_ownership(requesting_user: str, target_user: str,  allow_admin_override: bool = True) -> None:
+
     if requesting_user != target_user:
         raise HTTPException(
             status_code=403,
             detail="Access denied. Users can only view their own data."
         )
 
-
 class AuthorizationError(Exception):
-    """Custom exception for authorization failures."""
     pass
 
 
 class InsufficientPermissionsError(AuthorizationError):
-    """Raised when user lacks required permissions."""
     pass

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 try:
 	from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional dependency in local demos
+except ImportError:
 	def load_dotenv(*args, **kwargs):
 		return False
 

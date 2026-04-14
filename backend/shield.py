@@ -1,17 +1,3 @@
-"""
-Enhanced DDoS Shield with Intelligent Caching and Geolocation
-
-Features:
-- Full result caching (exact query match)
-- Mid-AST caching (superset query matching with in-memory filtering)
-- IP-based rate limiting with progressive penalties
-- AST-based rate limiting
-- Request validation
-- Worker pool for parallel execution
-- IP geolocation with spoofing detection
-- Multi-tier priority system
-"""
-
 import asyncio
 import time
 from typing import Optional
@@ -34,7 +20,6 @@ from ddos_prevention.cache import (
     normalize_and_hash,
 )
 
-# --- Global Instances ---
 ip_limiter = IPRateLimiter()
 request_validator = RequestValidator()
 full_cache = FullResultCache()
@@ -43,15 +28,12 @@ query_history = BoundedQueryHistory()
 query_parser = QuerySupersetDetector()
 memory_filter = InMemoryFilter()
 
-# --- Background Tasks ---
 async def periodic_cleanup():
     while True:
         await asyncio.sleep(60)
         await full_cache.cleanup_expired()
         await intermediate_cache.cleanup_expired()
 
-
-# --- App Lifecycle ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cleanup_task = asyncio.create_task(periodic_cleanup())
@@ -62,15 +44,12 @@ async def lifespan(app: FastAPI):
     cleanup_task.cancel()
     print("[SHIELD] Shutdown complete")
 
-
 app = FastAPI(
     title="DDoS Shield API",
     description="SQL query execution with DDoS protection and intelligent caching",
     lifespan=lifespan
 )
 
-
-# --- Main Endpoint ---
 @app.post("/execute-query")
 async def execute_query(
     request: Request,
@@ -78,8 +57,6 @@ async def execute_query(
 ):
     start_time = time.time()
 
-    # --- LAYER 1: IP Validation ---
-    # Allow simulator to spoof IPs via X-Forwarded-For header to test distributed attacks properly
     client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
 
     is_allowed, block_reason = await ip_limiter.check_ip(client_ip)
@@ -87,7 +64,6 @@ async def execute_query(
         print(f"[BLOCKED] IP {client_ip}: {block_reason}")
         raise HTTPException(status_code=429, detail=block_reason)
 
-    # --- LAYER 2: Request Validation ---
     try:
         body = await request.body()
         body_json = await request.json()
@@ -101,7 +77,6 @@ async def execute_query(
         print(f"[REJECTED] Invalid request from {client_ip}: {error}")
         raise HTTPException(status_code=400, detail=error)
 
-    # --- LAYER 3: Full Cache Lookup ---
     full_cache_key = compute_full_cache_key(raw_query)
 
     cached_result = await full_cache.get(full_cache_key)
@@ -115,7 +90,6 @@ async def execute_query(
             "latency_ms": round(latency * 1000, 2)
         }
 
-    # --- LAYER 4: Mid-AST Cache Lookup ---
     parsed_query = query_parser.parse_query(raw_query)
 
     if parsed_query:
@@ -137,7 +111,6 @@ async def execute_query(
                 "latency_ms": round(latency * 1000, 2)
             }
 
-    # --- LAYER 5: AST Rate Limiting ---
     ast_hash = normalize_and_hash(raw_query)
 
     is_limited = await query_history.record_and_check(
@@ -152,11 +125,8 @@ async def execute_query(
             detail="Rate limit exceeded for this query structure"
         )
 
-    # --- LAYER 6: Execute Query Direct ---
-    # Since we removed the worker pool, we perform mock execution directly here.
-    # In production, this would execute against a real database.
     try:
-        await asyncio.sleep(0.05)  # Simulate DB latency
+        await asyncio.sleep(0.05)
         import re
         student_match = re.search(r'student_id\s*=\s*(\d+)', raw_query, re.IGNORECASE)
         student_id = int(student_match.group(1)) if student_match else 12345
@@ -170,7 +140,6 @@ async def execute_query(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query execution failed: {str(e)}")
 
-    # --- LAYER 7: Populate Caches ---
     await full_cache.set(full_cache_key, result)
 
     if parsed_query:
@@ -184,9 +153,6 @@ async def execute_query(
         "result": result,
         "latency_ms": round(latency * 1000, 2)
     }
-
-
-# --- Health & Stats Endpoints ---
 
 @app.get("/health")
 async def health_check():
@@ -207,9 +173,6 @@ async def get_stats():
         "ip_rate_limiter": ip_limiter_stats
     }
 
-
-# --- Blacklist Management ---
-
 @app.post("/blacklist/{ip}")
 async def add_to_blacklist(ip: str):
     await ip_limiter.add_to_blacklist(ip)
@@ -221,9 +184,6 @@ async def remove_from_blacklist(ip: str):
     await ip_limiter.remove_from_blacklist(ip)
     return {"status": "success", "message": f"IP {ip} removed from blacklist"}
 
-
-# --- Error Handlers ---
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     print(f"[ERROR] Unhandled exception: {exc}")
@@ -231,7 +191,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error"}
     )
-
 
 if __name__ == "__main__":
     import uvicorn

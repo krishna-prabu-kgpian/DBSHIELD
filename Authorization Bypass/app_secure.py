@@ -1,22 +1,8 @@
-"""
-SECURE VERSION: Authorization Bypass Prevention
-================================================
-
-This backend implements proper role-based access control (RBAC).
-Only endpoints matching the user's role will be accessible.
-
-Authorization Strategy:
-- Authentication: Verify user identity (username/password)
-- Authorization: Verify user role for each endpoint
-- Data Isolation: Ensure users only access their own data
-"""
-
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
-# Import authentication from original backend database
 from auth_database import authenticate_user, verify_user_role, create_session_token, verify_session_token
 from db_utils import (
     search_courses_db,
@@ -37,9 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ============== Pydantic Models ==============
 
 class LoginPayload(BaseModel):
     username: str
@@ -75,17 +58,8 @@ class AssignmentPayload(BaseModel):
     title: str
 
 
-# ============== Authorization Helpers ==============
-
 def extract_user_role(request: Request) -> Optional[tuple[str, str]]:
-    """
-    Extract user information from Bearer token in Authorization header.
-    
-    ✅ SECURE: User must have logged in with username/password to get token.
-    The token proves their identity - prevents header spoofing.
-    
-    Token is obtained from POST /api/login response.
-    """
+
     auth_header = request.headers.get("Authorization", "")
     
     if not auth_header.startswith("Bearer "):
@@ -96,7 +70,6 @@ def extract_user_role(request: Request) -> Optional[tuple[str, str]]:
     
     token = auth_header.replace("Bearer ", "").strip()
     
-    # Verify token is valid and get user info
     user_data = verify_session_token(token)
     if not user_data:
         raise HTTPException(
@@ -114,7 +87,6 @@ def extract_user_role(request: Request) -> Optional[tuple[str, str]]:
 
 
 def require_role(*allowed_roles: str):
-    """Decorator to enforce role-based access control."""
     def decorator(func):
         async def wrapper(request: Request = None, **kwargs):
             username, role = extract_user_role(request)
@@ -146,12 +118,6 @@ def require_role(*allowed_roles: str):
     
     return decorator
 
-
-# ============== Database Functions (Real Data) ==============
-
-
-# ============== Endpoints ==============
-
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
@@ -159,20 +125,13 @@ def health_check() -> dict[str, str]:
 
 @app.post("/api/login")
 def login(payload: LoginPayload) -> dict[str, str]:
-    """
-    ✅ Authenticate user with username/password.
-    Returns a secure token that proves user identity.
-    
-    This prevents header spoofing - tokens are generated server-side
-    and tied to the authenticated user.
-    """
+
     username = payload.username.strip()
     password = payload.password
 
     if not username or not password:
         raise HTTPException(status_code=400, detail="Username and password are required.")
 
-    # Query the real database (same as original backend)
     result = authenticate_user(username, password)
     
     if not result:
@@ -185,7 +144,6 @@ def login(payload: LoginPayload) -> dict[str, str]:
     if role not in {"student", "instructor", "admin"}:
         role = "student"
 
-    # ✅ SECURE: Create a session token tied to this authenticated user
     token = create_session_token(user, role)
 
     return {
@@ -198,34 +156,23 @@ def login(payload: LoginPayload) -> dict[str, str]:
     }
 
 
-# ============== STUDENT ENDPOINTS (Secured) ==============
-
 @app.post("/api/student/search-courses")
 def student_search_courses(payload: CourseSearchPayload, request: Request) -> dict:
-    """Search courses - accessible by any role, typically students."""
     username, role = extract_user_role(request)
     return {"courses": search_courses_db(payload.query)}
 
 
 @app.post("/api/student/view-grades")
 def student_view_grades(payload: StudentGradePayload, request: Request) -> dict:
-    """
-    ✅ SECURED: Student can only view their OWN grades.
-    
-    Authorization Check:
-    - User must be authenticated
-    - User must be viewing their own grades (data ownership)
-    """
+
     username, role = extract_user_role(request)
     
-    # Restrict to students (or allow admin override in real system)
     if role not in {"student", "admin"}:
         raise HTTPException(
             status_code=403,
             detail="Only students can view grades"
         )
     
-    # CRITICAL: Verify user is viewing their own data
     if role == "student" and username != payload.student_username:
         raise HTTPException(
             status_code=403,
@@ -237,7 +184,7 @@ def student_view_grades(payload: StudentGradePayload, request: Request) -> dict:
 
 @app.post("/api/student/enroll")
 def student_enroll(payload: EnrollPayload, request: Request) -> dict:
-    """Enroll in course - only for students."""
+
     username, role = extract_user_role(request)
     
     if role != "student":
@@ -249,20 +196,11 @@ def student_enroll(payload: EnrollPayload, request: Request) -> dict:
     return enroll_student_db(payload.student_username, payload.course_code)
 
 
-# ============== INSTRUCTOR ENDPOINTS (Secured) ==============
-
 @app.post("/api/instructor/admit-student")
 def instructor_admit_student(payload: AdmitStudentPayload, request: Request) -> dict:
-    """
-    ✅ SECURED: Only instructors can admit students.
-    
-    Authorization Check:
-    - User must be authenticated
-    - User MUST have role="instructor"
-    """
+
     username, role = extract_user_role(request)
     
-    # CRITICAL: Verify user is an instructor
     if role != "instructor":
         raise HTTPException(
             status_code=403,
@@ -274,16 +212,9 @@ def instructor_admit_student(payload: AdmitStudentPayload, request: Request) -> 
 
 @app.post("/api/instructor/assign-grade")
 def instructor_assign_grade(payload: GradeStudentPayload, request: Request) -> dict:
-    """
-    ✅ SECURED: Only instructors can assign grades.
-    
-    Authorization Check:
-    - User must be authenticated
-    - User MUST have role="instructor"
-    """
+
     username, role = extract_user_role(request)
     
-    # CRITICAL: Verify user is an instructor
     if role != "instructor":
         raise HTTPException(
             status_code=403,
@@ -299,16 +230,9 @@ def instructor_assign_grade(payload: GradeStudentPayload, request: Request) -> d
 
 @app.post("/api/instructor/create-assignment")
 def instructor_create_assignment(payload: AssignmentPayload, request: Request) -> dict:
-    """
-    ✅ SECURED: Only instructors can create assignments.
-    
-    Authorization Check:
-    - User must be authenticated
-    - User MUST have role="instructor"
-    """
+
     username, role = extract_user_role(request)
     
-    # CRITICAL: Verify user is an instructor
     if role != "instructor":
         raise HTTPException(
             status_code=403,
@@ -317,21 +241,11 @@ def instructor_create_assignment(payload: AssignmentPayload, request: Request) -
     
     return create_assignment_db(payload.course_code, payload.title)
 
-
-# ============== ADMIN ENDPOINTS (Secured) ==============
-
 @app.post("/api/admin/action")
 def admin_action(payload: CourseSearchPayload, request: Request) -> dict:
-    """
-    ✅ SECURED: Only admins can perform admin actions.
-    
-    Authorization Check:
-    - User must be authenticated
-    - User MUST have role="admin"
-    """
+
     username, role = extract_user_role(request)
     
-    # CRITICAL: Verify user is an admin
     if role != "admin":
         raise HTTPException(
             status_code=403,

@@ -4,10 +4,9 @@ import sqlite3
 
 try:
     from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional dependency in local demos
+except ImportError:
     def load_dotenv(*args, **kwargs):
         return False
-
 
 BASE_DIR = Path(__file__).resolve().parent
 ENV_PATH = BASE_DIR.parent / ".env"
@@ -42,8 +41,6 @@ def connect_to_db():
 def handle_student_login(username: str, password: str):
     import time
     
-    # Simulate realistic database query parsing overhead
-    # During a DDoS, a database parsing complex queries (or under high connection load) slows down significantly.
     time.sleep(0.5)
     
     sql_query = f"SELECT * from users WHERE username='{username}' AND password='{password}'"

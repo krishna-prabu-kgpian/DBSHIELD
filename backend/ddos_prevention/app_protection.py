@@ -13,13 +13,11 @@ from starlette.concurrency import run_in_threadpool
 
 from .rate_limiter import IPRateLimiter
 
-
 def _env_flag(name: str, default: bool) -> bool:
     raw_value = os.getenv(name)
     if raw_value is None:
         return default
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
-
 
 @dataclass(frozen=True)
 class AppDDoSProtectionSettings:
@@ -29,14 +27,12 @@ class AppDDoSProtectionSettings:
     spoof_unique_ip_threshold: int = 12
     spoof_window_seconds: int = 10
 
-
 def load_app_ddos_settings(enabled: bool) -> AppDDoSProtectionSettings:
     return AppDDoSProtectionSettings(
         enabled=enabled,
         trust_x_forwarded_for=_env_flag("TRUST_X_FORWARDED_FOR", False),
         max_concurrent_login_requests=int(os.getenv("MAX_CONCURRENT_LOGIN_REQUESTS", "12")),
     )
-
 
 class IPSpoofDetector:
     def __init__(self, threshold: int, window: int):
@@ -73,7 +69,6 @@ class IPSpoofDetector:
 
             return False, ""
 
-
 class AppDDoSProtection:
     def __init__(self, settings: AppDDoSProtectionSettings):
         self.settings = settings
@@ -92,8 +87,6 @@ class AppDDoSProtection:
         x_forwarded_for = request.headers.get("X-Forwarded-For", "")
         has_forwarded_for = bool(x_forwarded_for.strip())
 
-        # In the local demo there is no trusted reverse proxy in front of FastAPI,
-        # so any client-provided X-Forwarded-For header is spoofed by definition.
         if has_forwarded_for and not self.settings.trust_x_forwarded_for:
             return JSONResponse(
                 status_code=403,
