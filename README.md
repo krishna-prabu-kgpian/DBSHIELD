@@ -60,32 +60,41 @@ select * from students limit 10;
 Default sample logins after seeding:
 
 - `admin / admin123`
+- `instructor1 / inst123`
+- `instructor2 / inst456`
 - `student1 / pass1`
 - `student2 / pass2`
 
-### 4. For Login :
+Generated student accounts follow the same pattern: `studentN / passN`.
+
+## Testing Authorization Bypass
+
+Set `ENABLE_AUTH_BYPASS_PROTECTION = False` in `backend/app.py` to demonstrate the vulnerable authorization-bypass behavior.
+Set it back to `True` to verify that the same requests are blocked by server-side checks.
+
+### 1. For Login :
 ```
 TOKEN=$(curl -s -X POST http://localhost:8000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"student1","password":"pass1"}' | jq -r '.token')
 ```
 
-### 5. Admin Action without token
+### 2. Admin Action without token
 ```
 curl -s -X POST http://localhost:8000/api/admin/action \
   -H "Content-Type: application/json" \
-  -d '{"query":"test"}' | jq .
+  -d '{"query":"SELECT username FROM users LIMIT 1"}' | jq .
 ```
 
-### 6. Admin Action with token
+### 3. Admin Action with token
 ```
 curl -s -X POST http://localhost:8000/api/admin/action \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query":"test"}' | jq .
+  -d '{"query":"SELECT username FROM users LIMIT 1"}' | jq .
 ```
 
-### 7. For Unauthorized grade viewing of another students :
+### 4. For Unauthorized grade viewing of another students :
 ```
 curl -X POST http://localhost:8000/api/student/view-grades \
   -H "Content-Type: application/json" \
@@ -93,14 +102,40 @@ curl -X POST http://localhost:8000/api/student/view-grades \
   -d '{"student_username":"student2"}' | jq .
 ```
 
-### 8. Add student
+### 5. Student token used on instructor-only admit endpoint
+```
+curl -s -X POST http://localhost:8000/api/instructor/admit-student \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"student_username":"student2","course_code":"CS101"}' | jq .
+```
+
+### 6. Student token used on instructor-only grade assignment
+```
+curl -s -X POST http://localhost:8000/api/instructor/assign-grade \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"student_username":"student2","course_code":"CS101","grade":"F"}' | jq .
+```
+
+### 7. Student token used on instructor-only assignment creation
+```
+curl -s -X POST http://localhost:8000/api/instructor/create-assignment \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"course_code":"CS101","title":"Unauthorized Assignment"}' | jq .
+```
+
+### 8. Student token used on admin-only add-student endpoint
 ```
 curl -s -X POST http://localhost:8000/api/admin/add-student \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"username":"newstudent","name":"New Student","email":"new@example.com"}' | jq .
+  -d '{"username":"bypassdemo","name":"Bypass Demo","email":"bypassdemo@example.com"}' | jq .
 ```
 
+With `ENABLE_AUTH_BYPASS_PROTECTION = False`, these attack requests should return HTTP 200 and execute even though the token belongs to `student1`.
+With `ENABLE_AUTH_BYPASS_PROTECTION = True`, the same requests should fail with HTTP 403 and an `Access denied` message.
 
 
 
