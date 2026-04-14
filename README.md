@@ -139,6 +139,83 @@ curl -s -X POST http://localhost:8000/api/admin/add-student \
 With `ENABLE_AUTH_BYPASS_PROTECTION = False`, these attack requests should return HTTP 200 and execute even though the token belongs to `student1`.
 With `ENABLE_AUTH_BYPASS_PROTECTION = True`, the same requests should fail with HTTP 403 and an `Access denied` message.
 
+### Windows (PowerShell) Equivalents
+
+Use the same toggle setting as above. These commands are written for Windows PowerShell:
+
+#### 1. Login and store token
+```powershell
+$TOKEN = (Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/login" `
+  -ContentType "application/json" `
+  -Body '{"username":"student1","password":"pass1"}').token
+```
+
+#### 2. Admin Action without token
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/admin/action" `
+  -ContentType "application/json" `
+  -Body '{"query":"SELECT username FROM users LIMIT 1"}' |
+  ConvertTo-Json -Depth 10
+```
+
+#### 3. Admin Action with token
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/admin/action" `
+  -Headers @{ Authorization = "Bearer $TOKEN" } `
+  -ContentType "application/json" `
+  -Body '{"query":"SELECT username FROM users LIMIT 1"}' |
+  ConvertTo-Json -Depth 10
+```
+
+#### 4. Unauthorized grade viewing of another student
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/student/view-grades" `
+  -Headers @{ Authorization = "Bearer $TOKEN" } `
+  -ContentType "application/json" `
+  -Body '{"student_username":"student2"}' |
+  ConvertTo-Json -Depth 10
+```
+
+#### 5. Student token used on instructor-only admit endpoint
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/instructor/admit-student" `
+  -Headers @{ Authorization = "Bearer $TOKEN" } `
+  -ContentType "application/json" `
+  -Body '{"student_username":"student2","course_code":"CS101"}' |
+  ConvertTo-Json -Depth 10
+```
+
+#### 6. Student token used on instructor-only grade assignment
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/instructor/assign-grade" `
+  -Headers @{ Authorization = "Bearer $TOKEN" } `
+  -ContentType "application/json" `
+  -Body '{"student_username":"student2","course_code":"CS101","grade":"F"}' |
+  ConvertTo-Json -Depth 10
+```
+
+#### 7. Student token used on instructor-only assignment creation
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/instructor/create-assignment" `
+  -Headers @{ Authorization = "Bearer $TOKEN" } `
+  -ContentType "application/json" `
+  -Body '{"course_code":"CS101","title":"Unauthorized Assignment"}' |
+  ConvertTo-Json -Depth 10
+```
+
+#### 8. Student token used on admin-only add-student endpoint
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/admin/add-student" `
+  -Headers @{ Authorization = "Bearer $TOKEN" } `
+  -ContentType "application/json" `
+  -Body '{"username":"bypassdemo","name":"Bypass Demo","email":"bypassdemo@example.com"}' |
+  ConvertTo-Json -Depth 10
+```
+
+In PowerShell, the expected behavior is the same:
+- with `ENABLE_AUTH_BYPASS_PROTECTION = False`, these requests should succeed with HTTP 200
+- with `ENABLE_AUTH_BYPASS_PROTECTION = True`, they should fail with HTTP 403 and an authorization error
+
 
 
 ## 1. Group Details
