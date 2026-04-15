@@ -77,10 +77,9 @@ except ImportError as e:
     def create_session_token(*args, **kwargs): return "dummy_token"
     def verify_session_token(*args, **kwargs): return None
 
+ENABLE_SQLI_PROTECTION = False
 
 ENABLE_DDOS_PROTECTION = False 
-
-ENABLE_SQLI_PROTECTION = False
 
 ENABLE_AUTH_BYPASS_PROTECTION = False
 
